@@ -1,0 +1,81 @@
+import React, { useEffect } from "react";
+import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
+import { useRouter, useSegments } from "expo-router";
+import { useAuth } from "../../api/AuthContext";
+import { Colors, Typography } from "../../constants/theme";
+
+interface ProtectedRouteProps { children: React.ReactNode; }
+
+const DEV_BYPASS_AUTH = false;
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (DEV_BYPASS_AUTH) return;
+    if (loading) return;
+    const inAuthGroup = segments[0] === "(auth)";
+    const inPatientGroup = segments[0] === "(patient)";
+    const inTabsGroup = segments[0] === "(tabs)";
+    const isPractitionerAllowedRoute = true;
+    const isPublicRoute =
+      segments[0] === "landing" ||
+      segments[0] === "disclaimer" ||
+      segments[0] === "typeOfUser" ||
+      !segments[0];
+
+    if (!user) {
+      if (!inAuthGroup && !isPublicRoute) router.replace("/(auth)/SignIn");
+    } else {
+      if (inAuthGroup) {
+        if (user.role === "patient") router.replace("/(patient)/PatientHome");
+        else router.replace("/(tabs)/Home");
+      } else if (user.role === "patient" && !inPatientGroup && !isPublicRoute) {
+        router.replace("/(patient)/PatientHome");
+      } else if (
+        user.role === "practitioner" &&
+        !inTabsGroup &&
+        !isPublicRoute &&
+        !isPractitionerAllowedRoute
+      ) {
+        router.replace("/(tabs)/Home");
+      }
+    }
+  }, [user, loading, segments]);
+
+  if (!DEV_BYPASS_AUTH && loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.logoCircle}>
+          <Text style={styles.logoText}>V</Text>
+        </View>
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 24 }} />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+  return <>{children}</>;
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: Colors.background,
+  },
+  logoCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoText: { fontSize: 28, fontWeight: "900", color: Colors.white },
+  loadingText: { ...Typography.callout, color: Colors.textMuted, marginTop: 12 },
+});
+
+export default ProtectedRoute;

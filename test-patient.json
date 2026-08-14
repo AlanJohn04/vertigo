@@ -1,0 +1,8 @@
+{
+  "practitionerId": "test-doc-123",
+  "name": "John Doe",
+  "age": 45,
+  "sex": "Male",
+  "cause": "Unknown",
+  "episodes": []
+}

@@ -1,0 +1,12 @@
+pandas
+scikit-learn
+xgboost
+lightgbm
+imbalanced-learn
+openpyxl
+onnx
+onnxconverter-common
+skl2onnx
+onnxmltools
+matplotlib
+seaborn
