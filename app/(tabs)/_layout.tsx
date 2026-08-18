@@ -62,6 +62,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="Exercises"
+        options={{
+          tabBarLabel: "VRT Exercises",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="fitness" color={color} size={22} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           tabBarLabel: "Profile",
