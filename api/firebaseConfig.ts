@@ -4,7 +4,7 @@ import { getFirestore } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyDummyKeyForDevTesting12345678",
   authDomain: "vertease.firebaseapp.com",
   databaseURL: "https://vertease-default-rtdb.firebaseio.com",
   projectId: "vertease",
@@ -14,11 +14,21 @@ const firebaseConfig = {
   measurementId: "G-WRV2BN9RS7",
 };
 
-// Initialize Firebase app
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+// Initialize Firebase app safely
+let app: any;
+try {
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+} catch (e) {
+  console.warn("Firebase app init warning:", e);
+}
 
-// Initialize Firestore
-const db = getFirestore(app);
+// Initialize Firestore safely
+let db: any = null;
+try {
+  if (app) db = getFirestore(app);
+} catch (e) {
+  console.warn("Firestore init warning:", e);
+}
 
 /**
  * Lazy initialization for Firebase Auth to prevent 'Component auth not registered' crashes
@@ -28,6 +38,7 @@ let authInstance: any = null;
 
 export const getAuthInstance = () => {
   if (authInstance) return authInstance;
+  if (!app) return null;
 
   try {
     // Attempt to get existing instance first
@@ -39,8 +50,13 @@ export const getAuthInstance = () => {
         persistence: getReactNativePersistence(AsyncStorage),
       });
     } catch (innerError) {
-      // Fallback to basic getAuth if all else fails
-      authInstance = getAuth(app);
+      try {
+        // Fallback to basic getAuth if all else fails
+        authInstance = getAuth(app);
+      } catch (finalErr) {
+        console.warn("Firebase auth unavailable in this environment:", finalErr);
+        authInstance = null;
+      }
     }
   }
   return authInstance;

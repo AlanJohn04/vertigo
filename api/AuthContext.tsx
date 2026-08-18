@@ -57,7 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   //    Change `role` below to "patient" to test the patient flow.
   //    Set back to `false` before production!
   // ============================================================
-  const DEV_MOCK_USER = false;
+  const DEV_MOCK_USER = !process.env.EXPO_PUBLIC_FIREBASE_API_KEY || process.env.EXPO_PUBLIC_FIREBASE_API_KEY.includes("Dummy");
   const MOCK_USER: User = {
     uid: "dev-test-uid-123",
     email: "devtest@vertease.com",
@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       // 2. If 404, Try Firestore (Lazy Migration)
-      if (response.status === 404) {
+      if (response.status === 404 && db) {
         console.log("User not found in Neon, checking Firestore for migration...");
         const userDocRef = doc(db, "users", uid);
         const userDoc = await getDoc(userDocRef);
@@ -121,6 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (DEV_MOCK_USER) {
       console.log("Using Mock Auth for development");
+      setUser(MOCK_USER);
       setLoading(false);
       return; 
     }
@@ -129,6 +130,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     // Listen for auth state changes
     const auth = getAuthInstance();
+    if (!auth) {
+      console.warn("Firebase Auth unavailable. Falling back to dev mock user.");
+      setUser(MOCK_USER);
+      setLoading(false);
+      return;
+    }
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
