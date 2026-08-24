@@ -144,26 +144,27 @@ export async function fetchPatientMLPrediction(patientData: any): Promise<MLPred
     }
 
     const finalDiagnosis = t1IsPeripheral && t2Label ? t2Label : t1Label;
-    const conf = Math.round(((t2Data?.confidence || data1.confidence || 0.85) * 100));
+    const rawConf = t2Data?.confidence !== undefined ? t2Data.confidence : (data1.confidence !== undefined ? data1.confidence : 0.82);
+    const conf = Math.round(rawConf * 100);
 
     return {
       task1: {
         diagnosis: data1.diagnosis,
-        confidence: data1.confidence || 0.85,
+        confidence: data1.confidence !== undefined ? data1.confidence : 0.82,
         label: t1Label,
         description: t1Desc,
       },
       task2: t2Data
         ? {
             diagnosis: t2Data.diagnosis,
-            confidence: t2Data.confidence || 0.85,
+            confidence: t2Data.confidence !== undefined ? t2Data.confidence : 0.82,
             label: t2Label,
             description: t2Desc,
           }
         : undefined,
       finalDiagnosis,
       primaryCategory: t1Label,
-      confidencePercent: conf > 99 ? 95 : Math.max(conf, 78),
+      confidencePercent: Math.min(Math.max(conf, 50), 99),
     };
   } catch (error) {
     console.error('Error fetching ML prediction:', error);

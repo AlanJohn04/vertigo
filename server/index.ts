@@ -444,10 +444,18 @@ app.post('/api/predict', async (req, res) => {
             const probsTensor = results[outputNameProbs];
             try {
                 if (probsTensor.data && probsTensor.data.length > 0) {
-                     const vals = Array.from(probsTensor.data as any).filter((v: any) => typeof v === 'number');
-                     if (vals.length > 0) {
-                         confidence = Math.max(...(vals as number[]));
-                     }
+                    const vals = Array.from(probsTensor.data as any).map(Number);
+                    if (Number(task) === 1) {
+                        const margin = vals[1] !== undefined ? vals[1] : vals[0];
+                        const prob = 1 / (1 + Math.exp(-margin));
+                        confidence = diagnosis === 1 ? prob : (1 - prob);
+                    } else {
+                        if (vals[diagnosis] !== undefined && vals[diagnosis] >= 0 && vals[diagnosis] <= 1) {
+                            confidence = vals[diagnosis];
+                        } else {
+                            confidence = Math.max(...vals);
+                        }
+                    }
                 }
             } catch (e) {
                 console.error('Error extracting probabilities:', e);

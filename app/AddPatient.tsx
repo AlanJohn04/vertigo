@@ -200,12 +200,18 @@ const AddPatient: React.FC = () => {
         "patientsLastUpdated",
         new Date().toISOString()
       );
-      Alert.alert("Success", "Patient saved successfully!", [
-        {
-          text: "OK",
-          onPress: () => router.replace("/(tabs)/Home"),
-        },
-      ]);
+
+      if (Platform.OS === "web") {
+        router.replace("/(tabs)/Home");
+      } else {
+        Alert.alert("Success", "Patient saved successfully!", [
+          {
+            text: "OK",
+            onPress: () => router.replace("/(tabs)/Home"),
+          },
+        ]);
+        setTimeout(() => router.replace("/(tabs)/Home"), 1000);
+      }
     } catch (error) {
       console.error("Error:", error);
       Alert.alert("Error", "Failed to save patient");
