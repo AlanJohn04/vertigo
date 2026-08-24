@@ -54,8 +54,6 @@ export default function PatientHome() {
       await logout(); 
     } catch (error) { 
       console.error("Logout error:", error); 
-    } finally {
-      router.replace("/typeOfUser");
     }
   };
 

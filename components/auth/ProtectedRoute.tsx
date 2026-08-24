@@ -6,20 +6,17 @@ import { Colors, Typography } from "../../constants/theme";
 
 interface ProtectedRouteProps { children: React.ReactNode; }
 
-const DEV_BYPASS_AUTH = false;
-
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { user, loading } = useAuth();
   const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
-    if (DEV_BYPASS_AUTH) return;
     if (loading) return;
+
     const inAuthGroup = segments[0] === "(auth)";
     const inPatientGroup = segments[0] === "(patient)";
     const inTabsGroup = segments[0] === "(tabs)";
-    const isPractitionerAllowedRoute = true;
     const isPublicRoute =
       segments[0] === "landing" ||
       segments[0] === "disclaimer" ||
@@ -27,35 +24,36 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       !segments[0];
 
     if (!user) {
-      if (!inAuthGroup && !isPublicRoute) router.replace("/(auth)/SignIn");
+      if (!inAuthGroup && !isPublicRoute) {
+        router.replace("/typeOfUser");
+      }
     } else {
-      if (inAuthGroup) {
-        if (user.role === "patient") router.replace("/(patient)/PatientHome");
-        else router.replace("/(tabs)/Home");
-      } else if (user.role === "patient" && !inPatientGroup && !isPublicRoute) {
+      if (inAuthGroup || segments[0] === "typeOfUser" || !segments[0]) {
+        if (user.role === "patient") {
+          router.replace("/(patient)/PatientHome");
+        } else {
+          router.replace("/(tabs)/Home");
+        }
+      } else if (user.role === "patient" && inTabsGroup) {
         router.replace("/(patient)/PatientHome");
-      } else if (
-        user.role === "practitioner" &&
-        !inTabsGroup &&
-        !isPublicRoute &&
-        !isPractitionerAllowedRoute
-      ) {
+      } else if (user.role === "practitioner" && inPatientGroup) {
         router.replace("/(tabs)/Home");
       }
     }
   }, [user, loading, segments]);
 
-  if (!DEV_BYPASS_AUTH && loading) {
+  if (loading) {
     return (
       <View style={styles.container}>
         <View style={styles.logoCircle}>
           <Text style={styles.logoText}>V</Text>
         </View>
         <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 24 }} />
-        <Text style={styles.loadingText}>Loading...</Text>
+        <Text style={styles.loadingText}>Loading VertEase...</Text>
       </View>
     );
   }
+
   return <>{children}</>;
 };
 

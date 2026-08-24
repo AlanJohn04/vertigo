@@ -56,7 +56,6 @@ const ProfileScreen: React.FC = () => {
             console.error("Logout error:", error);
           } finally {
             setIsLoading(false);
-            router.replace("/typeOfUser");
           }
         },
       },
