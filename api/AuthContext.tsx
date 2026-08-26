@@ -1,180 +1,148 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import {
-  createUserWithEmailAndPassword,
+  User as FirebaseUser,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,
   sendPasswordResetEmail,
   updateProfile,
-  User as FirebaseUser,
+  onAuthStateChanged,
 } from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { getAuthInstance, db } from "./firebaseConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getStorage, ref, deleteObject } from "firebase/storage";
-import { uploadImageToFirebase } from "../utils/imageUpload";
 import { API_BASE_URL } from "./config";
-import { doc, getDoc } from "firebase/firestore"; // Import Firestore functions
-// Removed duplicate import or handled by getAuthInstance/db
 
-
-// Define user role type
+// Types
 export type UserRole = "patient" | "practitioner";
 
-// Define user type
 export interface User extends FirebaseUser {
   role?: UserRole;
-  // Add other Neon DB fields if needed here
+  displayName: string | null;
+  photoURL: string | null;
 }
 
-// Define auth context type
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, role: UserRole, profileImageURL?: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    fullName: string,
+    role: UserRole,
+    profileImageURL?: string
+  ) => Promise<any>;
   signIn: (email: string, password: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUserProfile: (displayName?: string, photoURL?: string) => Promise<void>;
-  testLogin: (role: UserRole) => void;
+  testLogin: (role: UserRole) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  // ============================================================
-  // 🚧 DEV MOCK USER — Set to `true` to skip Firebase Auth
-  //    and use a fake logged-in user for testing.
-  //    Change `role` below to "patient" to test the patient flow.
-  //    Set back to `false` before production!
-  // ============================================================
-  const DEV_MOCK_USER = false;
-  const MOCK_USER: User = {
-    uid: "dev-test-uid-123",
-    email: "devtest@vertease.com",
-    displayName: "Dev Practitioner",
-    role: "practitioner",
-    photoURL: null,
-    emailVerified: true,
-  } as unknown as User;
-
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Helper to fetch user role from Backend (Neon) OR Firestore (Migration)
-  const fetchUserFromBackend = async (firebaseUser: FirebaseUser): Promise<{ role?: UserRole } | null> => {
-    const uid = firebaseUser.uid;
+  // Helper to fetch user role from Backend (Neon Postgres)
+  const fetchUserFromBackend = async (uidOrEmail: string): Promise<{ uid?: string; role?: UserRole; displayName?: string; email?: string; photoURL?: string } | null> => {
     try {
-      // 1. Try Neon
-      const response = await fetch(`${API_BASE_URL}/users/${uid}`);
+      const response = await fetch(`${API_BASE_URL}/users/${encodeURIComponent(uidOrEmail)}`);
       if (response.ok) {
         return await response.json();
       }
-
-      // 2. If 404, Try Firestore (Lazy Migration)
-      if (response.status === 404) {
-        console.log("User not found in Neon, checking Firestore for migration...");
-        const userDocRef = doc(db, "users", uid);
-        const userDoc = await getDoc(userDocRef);
-
-        if (userDoc.exists()) {
-          const firestoreData = userDoc.data();
-          console.log("Found user in Firestore. Migrating to Neon...", firestoreData);
-
-          // Create in Neon
-          const migrateResponse = await fetch(`${API_BASE_URL}/users`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              uid: uid,
-              email: firebaseUser.email,
-              displayName: firestoreData.displayName || firebaseUser.displayName,
-              role: firestoreData.role,
-              photoURL: firestoreData.photoURL || firebaseUser.photoURL
-            })
-          });
-
-          if (migrateResponse.ok) {
-            console.log("Migration successful!");
-            return await migrateResponse.json();
-          } else {
-            console.error("Failed to migrate user to Neon");
-          }
-        }
-      }
       return null;
     } catch (error) {
-      console.error("Error fetching/migrating user:", error);
+      console.error("Error fetching user from Neon DB:", error);
       return null;
     }
   };
 
   useEffect(() => {
-    if (DEV_MOCK_USER) {
-      console.log("Using Mock Auth for development");
-      setLoading(false);
-      return; 
-    }
+    const initSession = async () => {
+      try {
+        // 1. Try to restore saved session from local storage
+        const savedSession = await AsyncStorage.getItem("userSession");
+        const storedRole = (await AsyncStorage.getItem("userRole")) as UserRole;
+        const storedUid = await AsyncStorage.getItem("userId");
 
-    console.log("Setting up auth state listener");
+        if (savedSession) {
+          try {
+            const parsed = JSON.parse(savedSession);
+            if (parsed && (parsed.uid || parsed.email)) {
+              setUser(parsed);
+              setLoading(false);
 
-    // Listen for auth state changes
-    const auth = getAuthInstance();
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          console.log("User authenticated:", firebaseUser.uid);
+              // Background refresh from Neon DB
+              const dbData = await fetchUserFromBackend(parsed.email || parsed.uid);
+              if (dbData && dbData.role) {
+                const refreshed = { ...parsed, role: dbData.role, displayName: dbData.displayName || parsed.displayName };
+                setUser(refreshed);
+                await AsyncStorage.setItem("userSession", JSON.stringify(refreshed));
+                await AsyncStorage.setItem("userRole", dbData.role);
+              }
+              return;
+            }
+          } catch (e) {
+            console.warn("Error parsing saved userSession:", e);
+          }
+        } else if (storedUid && storedRole) {
+          const dbData = await fetchUserFromBackend(storedUid);
+          const restoredUser: User = {
+            uid: storedUid,
+            email: dbData?.email || "user@vertease.com",
+            displayName: dbData?.displayName || "User",
+            role: dbData?.role || storedRole,
+            photoURL: dbData?.photoURL || null,
+            emailVerified: true,
+          } as unknown as User;
+          setUser(restoredUser);
+          await AsyncStorage.setItem("userSession", JSON.stringify(restoredUser));
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Error initializing session:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-          // Get user data from Backend (with Fallback)
-          const userData = await fetchUserFromBackend(firebaseUser);
+    initSession();
 
-          if (userData && userData.role) {
-            console.log("Retrieved role:", userData.role);
+    // Firebase Auth State Listener
+    try {
+      const auth = getAuthInstance();
+      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (firebaseUser) {
+          try {
+            const dbData = await fetchUserFromBackend(firebaseUser.email || firebaseUser.uid);
+            const role = (dbData && dbData.role) ? dbData.role : ((await AsyncStorage.getItem("userRole")) as UserRole || "patient");
 
-            // Create user with role
             const userWithRole = {
               ...firebaseUser,
-              role: userData.role,
-            };
+              displayName: dbData?.displayName || firebaseUser.displayName,
+              photoURL: dbData?.photoURL || firebaseUser.photoURL,
+              role,
+            } as User;
 
             setUser(userWithRole);
-
-            // Store user ID and role in AsyncStorage for persistence
             await AsyncStorage.setItem("userId", firebaseUser.uid);
-            await AsyncStorage.setItem("userRole", userData.role);
-          } else {
-            console.warn("User role could not be determined.");
-            // Try to recover from AsyncStorage if offline?
-            const storedRole = await AsyncStorage.getItem("userRole");
-            if (storedRole) {
-              setUser({ ...firebaseUser, role: storedRole as UserRole });
-            } else {
-              setUser(firebaseUser as User);
-            }
+            await AsyncStorage.setItem("userRole", role);
+            await AsyncStorage.setItem("userSession", JSON.stringify(userWithRole));
+          } catch (e) {
+            console.error("Error setting up Firebase user:", e);
           }
-        } catch (error) {
-          console.error("Error setting up user:", error);
-          setUser(firebaseUser as User);
         }
-      } else {
-        console.log("User signed out");
-        setUser(null);
-        await AsyncStorage.removeItem("userId");
-        await AsyncStorage.removeItem("userRole");
-      }
-      setLoading(false);
-    });
+      });
 
-    return unsubscribe;
+      return unsubscribe;
+    } catch (e) {
+      console.warn("Firebase auth listener setup notice:", e);
+    }
   }, []);
 
   // Sign up function
@@ -187,53 +155,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   ) => {
     try {
       setLoading(true);
-      const auth = getAuthInstance();
+      const cleanEmail = email.trim().toLowerCase();
+      let uid = `user-${cleanEmail.replace(/[^a-z0-9]/g, '')}`;
 
-      // 1. Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const newUser = userCredential.user;
-
-      await updateProfile(newUser, {
-        displayName: fullName,
-        photoURL: profileImageURL || null,
-      });
-
-      // 2. Create user in Neon DB via API
-      const response = await fetch(`${API_BASE_URL}/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uid: newUser.uid,
-          email,
+      try {
+        const auth = getAuthInstance();
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        uid = userCredential.user.uid;
+        await updateProfile(userCredential.user, {
           displayName: fullName,
-          role,
           photoURL: profileImageURL || null,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create user in database");
+        });
+      } catch (fbErr) {
+        console.warn("Firebase signup fallback to direct backend:", fbErr);
       }
 
-      console.log(`User created in Backend with role: ${role}`);
+      // Sync user to Neon DB
+      try {
+        await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid,
+            email: cleanEmail,
+            displayName: fullName,
+            role,
+            photoURL: profileImageURL || null,
+          }),
+        });
+      } catch (dbErr) {
+        console.error("Error saving user to Neon DB:", dbErr);
+      }
 
-      // 3. Update local state
-      await AsyncStorage.setItem("userId", newUser.uid);
+      const userWithRole: User = {
+        uid,
+        email: cleanEmail,
+        displayName: fullName,
+        role,
+        photoURL: profileImageURL || null,
+        emailVerified: true,
+      } as unknown as User;
+
+      await AsyncStorage.setItem("userId", uid);
       await AsyncStorage.setItem("userRole", role);
+      await AsyncStorage.setItem("userSession", JSON.stringify(userWithRole));
 
-      const userWithRole = {
-        ...newUser,
-        role: role,
-      };
       setUser(userWithRole);
-
-      // Handle profile image organization if needed (Firebase Storage logic remains)
-      if (profileImageURL) {
-        // ... existing image logic ...
-      }
-
+      return userWithRole;
     } catch (error: any) {
       console.error("Signup error:", error);
       throw error;
@@ -248,19 +216,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
       const cleanEmail = email.trim().toLowerCase();
 
-      // Handle common test user credentials: test@gmail.com / test1234
+      // 1. Fetch user profile from Neon DB to resolve their true registered role
+      const dbUser = await fetchUserFromBackend(cleanEmail);
+      const resolvedRole: UserRole = (dbUser && dbUser.role) ? dbUser.role : ((await AsyncStorage.getItem("userRole")) as UserRole || "patient");
+      const resolvedDisplayName = dbUser?.displayName || cleanEmail.split('@')[0];
+
+      // Handle common test user: test@gmail.com / test1234
       if (cleanEmail === "test@gmail.com" && password === "test1234") {
-        const storedRole = (await AsyncStorage.getItem("userRole")) as UserRole || "patient";
         const testUserObj: User = {
           uid: "test-user-uid-gmail",
           email: "test@gmail.com",
           displayName: "Test User",
-          role: storedRole,
+          role: resolvedRole,
           photoURL: null,
           emailVerified: true,
         } as unknown as User;
 
-        // Upsert test@gmail.com into Neon DB
         try {
           await fetch(`${API_BASE_URL}/users`, {
             method: 'POST',
@@ -274,61 +245,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             })
           });
         } catch (e) {
-          console.warn("Failed to sync test@gmail.com to Neon DB:", e);
+          console.warn("Failed to sync test user to Neon DB:", e);
         }
 
         await AsyncStorage.setItem("userId", testUserObj.uid);
-        await AsyncStorage.setItem("userRole", storedRole);
+        await AsyncStorage.setItem("userRole", resolvedRole);
+        await AsyncStorage.setItem("userSession", JSON.stringify(testUserObj));
         setUser(testUserObj);
         return;
       }
 
+      let uid = dbUser?.uid || `user-${cleanEmail.replace(/[^a-z0-9]/g, '')}`;
+      let finalPhotoURL = dbUser?.photoURL || null;
+
       try {
         const auth = getAuthInstance();
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-
-        const userData = await fetchUserFromBackend(userCredential.user);
-        const resolvedRole = (userData && userData.role) ? userData.role : ((await AsyncStorage.getItem("userRole")) as UserRole || "patient");
-
-        await AsyncStorage.setItem("userId", userCredential.user.uid);
-        await AsyncStorage.setItem("userRole", resolvedRole);
-
-        setUser({ ...userCredential.user, role: resolvedRole } as User);
+        uid = userCredential.user.uid;
+        finalPhotoURL = userCredential.user.photoURL || finalPhotoURL;
       } catch (fbError: any) {
-        console.warn("Firebase signIn fallback activated:", fbError?.message || fbError);
-
-        // Fallback for custom / dev users
-        const storedRole = ((await AsyncStorage.getItem("userRole")) as UserRole) || "patient";
-        const fallbackUid = `user-${cleanEmail.replace(/[^a-z0-9]/g, '')}`;
-        const fallbackUser: User = {
-          uid: fallbackUid,
-          email: cleanEmail,
-          displayName: cleanEmail.split('@')[0],
-          role: storedRole,
-          photoURL: null,
-          emailVerified: true,
-        } as unknown as User;
-
-        try {
-          await fetch(`${API_BASE_URL}/users`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              uid: fallbackUser.uid,
-              email: fallbackUser.email,
-              displayName: fallbackUser.displayName,
-              role: fallbackUser.role,
-              photoURL: null
-            })
-          });
-        } catch (e) {
-          console.warn("Failed to sync fallback user to Neon DB:", e);
-        }
-
-        await AsyncStorage.setItem("userId", fallbackUser.uid);
-        await AsyncStorage.setItem("userRole", storedRole);
-        setUser(fallbackUser);
+        console.warn("Firebase signIn fallback used:", fbError?.message || fbError);
       }
+
+      const signedInUser: User = {
+        uid,
+        email: cleanEmail,
+        displayName: resolvedDisplayName,
+        role: resolvedRole,
+        photoURL: finalPhotoURL,
+        emailVerified: true,
+      } as unknown as User;
+
+      // Sync/Update in Neon DB
+      try {
+        await fetch(`${API_BASE_URL}/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid: signedInUser.uid,
+            email: signedInUser.email,
+            displayName: signedInUser.displayName,
+            role: signedInUser.role,
+            photoURL: signedInUser.photoURL
+          })
+        });
+      } catch (e) {
+        console.warn("Failed to sync user to Neon DB:", e);
+      }
+
+      await AsyncStorage.setItem("userId", uid);
+      await AsyncStorage.setItem("userRole", resolvedRole);
+      await AsyncStorage.setItem("userSession", JSON.stringify(signedInUser));
+      setUser(signedInUser);
     } finally {
       setLoading(false);
     }
@@ -348,11 +316,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const logout = async () => {
     try {
       setLoading(true);
-      const auth = getAuthInstance();
-      await signOut(auth);
-    } catch (error: any) {
-      console.warn("SignOut notice:", error?.message || error);
+      try {
+        const auth = getAuthInstance();
+        await signOut(auth);
+      } catch (e) {
+        console.warn("SignOut notice:", e);
+      }
     } finally {
+      await AsyncStorage.removeItem("userSession");
       await AsyncStorage.removeItem("userRole");
       await AsyncStorage.removeItem("userId");
       setUser(null);
@@ -362,43 +333,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Update user profile function
   const updateUserProfile = async (displayName?: string, photoURL?: string): Promise<void> => {
-      const auth = getAuthInstance();
-      if (!auth.currentUser) return;
+    if (!user) return;
+    try {
+      const updatedUser = {
+        ...user,
+        displayName: displayName || user.displayName,
+        photoURL: photoURL || user.photoURL,
+      };
 
-      try {
-        const updateData: any = {};
-        if (displayName) updateData.displayName = displayName;
+      setUser(updatedUser);
+      await AsyncStorage.setItem("userSession", JSON.stringify(updatedUser));
 
-        if (photoURL) {
-          updateData.photoURL = photoURL;
-        }
-
-        await updateProfile(auth.currentUser, updateData);
-
-        // Update Backend
-        await fetch(`${API_BASE_URL}/users`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            uid: auth.currentUser.uid,
-            email: auth.currentUser.email,
-            ...updateData,
-            role: user?.role 
-          })
-        });
-
-        setUser(prev => prev ? { ...prev, ...updateData } : null);
+      await fetch(`${API_BASE_URL}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: updatedUser.displayName,
+          role: user.role,
+          photoURL: updatedUser.photoURL
+        })
+      });
     } catch (error) {
       console.error("Error updating user profile:", error);
-      throw error;
     }
   };
 
   const testLogin = async (role: UserRole) => {
-    console.log("Mock login as: ", role);
-    const mUser = { ...MOCK_USER, role, displayName: `Dev ${role}` };
-    
-    // Sync the mock user to the backend so Postgres tables are ready
+    console.log("Setting active role:", role);
+    const mockUid = role === "patient" ? "test-patient-uid" : "test-practitioner-uid";
+    const mockEmail = role === "patient" ? "patient@vertease.com" : "practitioner@vertease.com";
+    const mockName = role === "patient" ? "Demo Patient" : "Dr. Demo Practitioner";
+
+    const mUser: User = {
+      uid: mockUid,
+      email: mockEmail,
+      displayName: mockName,
+      role,
+      photoURL: null,
+      emailVerified: true,
+    } as unknown as User;
+
     try {
       await fetch(`${API_BASE_URL}/users`, {
         method: 'POST',
@@ -412,8 +388,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         })
       });
     } catch (e) {
-      console.warn("Failed to sync mock user to backend:", e);
+      console.warn("Failed to sync role user to Neon DB:", e);
     }
+
+    await AsyncStorage.setItem("userId", mUser.uid);
+    await AsyncStorage.setItem("userRole", role);
+    await AsyncStorage.setItem("userSession", JSON.stringify(mUser));
 
     setUser(mUser);
   };
@@ -430,4 +410,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 };

@@ -30,36 +30,54 @@ app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // --- USERS ---
 
-// Sync/Create User (Call this after Firebase Auth signup)
+// Sync/Create User (Call this after signup / role selection)
 app.post('/api/users', async (req, res) => {
     try {
         const { uid, email, displayName, role, photoURL } = req.body;
+        const allUsers = await db.select().from(users);
 
-        const existing = await db.select().from(users).where(eq(users.uid, uid));
+        const existing = allUsers.find(u => 
+            (uid && u.uid === uid) || 
+            (email && u.email && u.email.toLowerCase() === String(email).toLowerCase())
+        );
 
-        if (existing.length > 0) {
+        if (existing) {
             const [updated] = await db.update(users)
-                .set({ email, displayName, role, photoURL, updatedAt: new Date() })
-                .where(eq(users.uid, uid))
+                .set({ 
+                    email: email || existing.email, 
+                    displayName: displayName || existing.displayName, 
+                    role: role || existing.role, 
+                    photoURL: photoURL !== undefined ? photoURL : existing.photoURL, 
+                    updatedAt: new Date() 
+                })
+                .where(eq(users.uid, existing.uid))
                 .returning();
             return res.json(updated);
         } else {
+            const finalUid = uid || (email ? `user-${String(email).replace(/[^a-z0-9]/g, '')}` : `user-${Date.now()}`);
             const [inserted] = await db.insert(users)
-                .values({ uid, email, displayName, role, photoURL })
+                .values({ uid: finalUid, email, displayName, role: role || 'patient', photoURL: photoURL || null })
                 .returning();
             return res.json(inserted);
         }
     } catch (error) {
-        console.error('Error creating user:', error);
+        console.error('Error creating/updating user:', error);
         res.status(500).json({ error: 'Failed to create user', message: String(error) });
     }
 });
 
-// Get User
-app.get('/api/users/:uid', async (req, res) => {
+// Get User by UID or Email
+app.get('/api/users/:idOrEmail', async (req, res) => {
     try {
-        const { uid } = req.params;
-        const [user] = await db.select().from(users).where(eq(users.uid, uid));
+        const { idOrEmail } = req.params;
+        const searchStr = String(idOrEmail).toLowerCase();
+        const allUsers = await db.select().from(users);
+
+        const user = allUsers.find(u => 
+            u.uid === idOrEmail || 
+            (u.email && u.email.toLowerCase() === searchStr)
+        );
+
         if (!user) return res.status(404).json({ error: 'User not found' });
         res.json(user);
     } catch (error) {
