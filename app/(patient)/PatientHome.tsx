@@ -96,19 +96,24 @@ export default function PatientHome() {
           </TouchableOpacity>
         </View>
 
-        {/* Condition & Hybrid Diagnosis Badge */}
+        {/* Condition & 50:50 Ensemble Diagnosis Badge */}
         <View style={styles.conditionCard}>
           <View style={{ flex: 1, marginRight: 8 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 }}>
               <Ionicons name="sparkles" size={13} color={Colors.primary} />
-              <Text style={styles.conditionLabel}>HYBRID ML + GEMINI DIAGNOSIS</Text>
+              <Text style={styles.conditionLabel}>50:50 ML + LLM HYBRID DIAGNOSIS</Text>
             </View>
             <Text style={styles.conditionValue} numberOfLines={1}>{conditionName}</Text>
+            {hybridResult && (
+              <Text style={{ fontSize: 11, color: Colors.textMuted, marginTop: 2 }}>
+                50% ML: {hybridResult.mlContributionPercent}% • 50% LLM: {hybridResult.llmContributionPercent}%
+              </Text>
+            )}
           </View>
           <View style={[styles.severityPill, { backgroundColor: severity.bg }]}>
             <View style={[styles.severityDot, { backgroundColor: severity.color }]} />
             <Text style={[styles.severityText, { color: severity.color }]}>
-              {hybridResult ? `${hybridResult.confidencePercent}% Confidence` : severity.label}
+              {hybridResult ? `${hybridResult.confidencePercent}% Consensus` : severity.label}
             </Text>
           </View>
         </View>

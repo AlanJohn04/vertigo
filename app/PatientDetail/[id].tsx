@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import Markdown from "react-native-markdown-display";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/api/config";
 import { fetchHybridDiagnosis, HybridPredictionResult } from "@/utils/mlPrediction";
@@ -136,7 +137,7 @@ const PatientDetail = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Running Hybrid ML + Gemini Diagnostic Analysis...</Text>
+        <Text style={styles.loadingText}>Running 50:50 ML + LLM Hybrid Diagnostic Analysis...</Text>
       </View>
     );
   }
@@ -197,27 +198,53 @@ const PatientDetail = () => {
         </View>
       </View>
 
-      {/* HYBRID ML + GEMINI AI DIAGNOSTIC CARD */}
+      {/* 50:50 HYBRID ML + GEMINI LLM DIAGNOSTIC CARD */}
       <View style={styles.hybridCard}>
         <View style={styles.hybridHeaderRow}>
           <View style={styles.badgeRow}>
             <Ionicons name="sparkles" size={16} color={Colors.primary} />
-            <Text style={styles.hybridOverline}>HYBRID ML + GEMINI DIAGNOSIS</Text>
+            <Text style={styles.hybridOverline}>50:50 ML + LLM HYBRID DIAGNOSIS</Text>
           </View>
           {hybridResult && (
             <View style={styles.confidencePill}>
-              <Text style={styles.confidenceText}>{hybridResult.confidencePercent}% Statistical Confidence</Text>
+              <Text style={styles.confidenceText}>{hybridResult.confidencePercent}% Consensus Confidence</Text>
             </View>
           )}
         </View>
 
         <Text style={styles.hybridDiagnosisTitle}>
-          {hybridResult?.finalHybridDiagnosis || "Hybrid Analysis Complete"}
+          {hybridResult?.finalHybridDiagnosis || "Consensus Diagnostic Analysis"}
         </Text>
 
-        <Text style={styles.hybridSummaryText}>
-          {hybridResult?.clinicalAssessment || "Statistical models and clinical assessment evaluated."}
-        </Text>
+        {/* 50:50 Contribution Gauge Bar */}
+        {hybridResult && (
+          <View style={styles.ensembleBarContainer}>
+            <View style={styles.ensembleLabelsRow}>
+              <Text style={styles.ensembleSideLabel}>
+                <Text style={{ fontWeight: "700", color: Colors.info }}>50% ML Model: </Text>
+                {hybridResult.mlContributionPercent}%
+              </Text>
+              <Text style={styles.ensembleSideLabel}>
+                <Text style={{ fontWeight: "700", color: Colors.primary }}>50% LLM Reasoner: </Text>
+                {hybridResult.llmContributionPercent}%
+              </Text>
+            </View>
+            <View style={styles.ensembleTrack}>
+              <View style={[styles.ensembleFillML, { width: "50%" }]} />
+              <View style={[styles.ensembleFillLLM, { width: "50%" }]} />
+            </View>
+            <Text style={styles.ensembleFootnote}>
+              Fused via 50:50 Ensemble Weighting (Statistical ONNX Classifier + Gemini Clinical Reasoner)
+            </Text>
+          </View>
+        )}
+
+        {/* Formatted Markdown Clinical Summary */}
+        <View style={styles.markdownWrapper}>
+          <Markdown style={markdownStyles}>
+            {hybridResult?.clinicalAssessment || "Statistical models and clinical presentation evaluated."}
+          </Markdown>
+        </View>
 
         {/* Statistical ML Feature Badges */}
         {hybridResult?.ml && (
@@ -227,7 +254,7 @@ const PatientDetail = () => {
             </View>
             {hybridResult.ml.task2 && (
               <View style={[styles.mlTag, { backgroundColor: "#EFF6FF" }]}>
-                <Text style={[styles.mlTagText, { color: Colors.info }]}>Subtype: {hybridResult.ml.task2.label}</Text>
+                <Text style={[styles.mlTagText, { color: Colors.info }]}>ML Subtype: {hybridResult.ml.task2.label}</Text>
               </View>
             )}
           </View>
@@ -236,10 +263,10 @@ const PatientDetail = () => {
         {/* Prescribed Vestibular Exercises */}
         {hybridResult?.prescribedExercises && hybridResult.prescribedExercises.length > 0 && (
           <View style={styles.exerciseSection}>
-            <Text style={styles.exerciseSectionTitle}>Prescribed Vestibular Rehabilitation</Text>
+            <Text style={styles.exerciseSectionTitle}>Prescribed Vestibular Rehabilitation Routine</Text>
             {hybridResult.prescribedExercises.map((ex, idx) => (
               <View key={idx} style={styles.exerciseCard}>
-                <Ionicons name={(ex.icon || "fitness-outline") as any} size={20} color={Colors.primary} style={{ marginRight: 10 }} />
+                <Ionicons name={(ex.icon || "fitness-outline") as any} size={22} color={Colors.primary} style={{ marginRight: 12 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.exerciseTitle}>{ex.title}</Text>
                   <Text style={styles.exerciseDesc}>{ex.desc}</Text>
@@ -273,7 +300,7 @@ const PatientDetail = () => {
           ) : (
             <>
               <Ionicons name="refresh" size={16} color={Colors.primary} />
-              <Text style={styles.refreshBtnText}>Re-analyze with Hybrid AI</Text>
+              <Text style={styles.refreshBtnText}>Re-calculate 50:50 Ensemble Diagnosis</Text>
             </>
           )}
         </TouchableOpacity>
@@ -347,6 +374,45 @@ const PatientDetail = () => {
       })}
     </ScrollView>
   );
+};
+
+const markdownStyles = {
+  body: {
+    color: "#334155",
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  heading1: {
+    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "800" as const,
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  heading2: {
+    color: "#0F172A",
+    fontSize: 16,
+    fontWeight: "700" as const,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  heading3: {
+    color: "#0F172A",
+    fontSize: 15,
+    fontWeight: "700" as const,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  strong: {
+    color: "#0F172A",
+    fontWeight: "700" as const,
+  },
+  list_item: {
+    marginVertical: 2,
+  },
+  bullet_list: {
+    marginVertical: 4,
+  },
 };
 
 const styles = StyleSheet.create({
@@ -424,13 +490,48 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     color: Colors.textPrimary,
+    marginBottom: 10,
+  },
+  ensembleBarContainer: {
+    backgroundColor: "#F8FAFC",
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 14,
+  },
+  ensembleLabelsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 6,
   },
-  hybridSummaryText: {
-    fontSize: 14,
+  ensembleSideLabel: {
+    fontSize: 12,
     color: Colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 12,
+  },
+  ensembleTrack: {
+    height: 8,
+    borderRadius: 4,
+    flexDirection: "row",
+    overflow: "hidden",
+    backgroundColor: "#E2E8F0",
+    marginBottom: 6,
+  },
+  ensembleFillML: {
+    backgroundColor: Colors.info,
+    height: "100%",
+  },
+  ensembleFillLLM: {
+    backgroundColor: Colors.primary,
+    height: "100%",
+  },
+  ensembleFootnote: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: "center",
+  },
+  markdownWrapper: {
+    marginVertical: 8,
   },
   mlTagRow: {
     flexDirection: "row",
@@ -454,7 +555,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   exerciseSectionTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     color: Colors.textPrimary,
     marginBottom: 8,
@@ -463,9 +564,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F8FAFC",
-    padding: 10,
+    padding: 12,
     borderRadius: BorderRadius.md,
-    marginBottom: 6,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },

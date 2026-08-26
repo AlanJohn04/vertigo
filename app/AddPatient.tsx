@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Animated,
 } from "react-native";
 import {
   Checkbox,
@@ -35,12 +36,29 @@ const colors = {
   error: "#f44336",
 };
 
+const STEP_TITLES = [
+  "Info",
+  "Onset",
+  "Type",
+  "Duration",
+  "Sensation",
+  "Pattern",
+  "Triggers",
+  "Symptoms",
+  "History",
+  "Review",
+];
+
 const AddPatient: React.FC = () => {
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams();
   const isEditing = params.isEditing === "true";
   const patientId = params.patientId as string;
+
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -149,8 +167,38 @@ const AddPatient: React.FC = () => {
     }));
   };
 
-  const nextStep = () => setStep((prev) => Math.min(prev + 1, totalSteps));
-  const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
+  const animateTransition = (direction: 'next' | 'prev', callback: () => void) => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: direction === 'next' ? -25 : 25, duration: 120, useNativeDriver: true }),
+    ]).start(() => {
+      callback();
+      slideAnim.setValue(direction === 'next' ? 25 : -25);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+      ]).start();
+    });
+  };
+
+  const nextStep = () => {
+    if (step < totalSteps) {
+      animateTransition('next', () => setStep((prev) => Math.min(prev + 1, totalSteps)));
+    }
+  };
+
+  const prevStep = () => {
+    if (step > 1) {
+      animateTransition('prev', () => setStep((prev) => Math.max(prev - 1, 1)));
+    }
+  };
+
+  const goToStep = (targetStep: number) => {
+    if (targetStep === step) return;
+    const dir = targetStep > step ? 'next' : 'prev';
+    animateTransition(dir, () => setStep(targetStep));
+  };
 
   const handleSubmit = async () => {
     try {
@@ -223,17 +271,55 @@ const AddPatient: React.FC = () => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
     >
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView ref={scrollViewRef} contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>
             {isEditing ? "Edit Patient" : "Add Patient"}
           </Text>
         </View>
 
+        {/* Horizontal Step Stepper */}
+        <View style={styles.stepperWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.stepperContainer}
+          >
+            {STEP_TITLES.map((title, idx) => {
+              const stepNumber = idx + 1;
+              const isActive = step === stepNumber;
+              const isPast = step > stepNumber;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.stepperPill,
+                    isActive && styles.stepperPillActive,
+                    isPast && styles.stepperPillPast,
+                  ]}
+                  onPress={() => goToStep(stepNumber)}
+                >
+                  <View style={[styles.stepperNumCircle, isActive && styles.stepperNumCircleActive]}>
+                    <Text style={[styles.stepperNumText, isActive && styles.stepperNumTextActive]}>
+                      {stepNumber}
+                    </Text>
+                  </View>
+                  <Text style={[styles.stepperLabelText, isActive && styles.stepperLabelTextActive]}>
+                    {title}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
         <View style={styles.progressContainer}>
-          <Text style={styles.progressText}>
-            Step {step} of {totalSteps}
-          </Text>
+          <View style={styles.progressTextRow}>
+            <Text style={styles.progressText}>
+              Step {step} of {totalSteps}: {STEP_TITLES[step - 1]}
+            </Text>
+            <Text style={styles.progressPercentText}>{Math.round((step / totalSteps) * 100)}% Complete</Text>
+          </View>
           <ProgressBar
             progress={step / totalSteps}
             color="#2D9F88"
@@ -241,7 +327,15 @@ const AddPatient: React.FC = () => {
           />
         </View>
 
-        <View style={styles.formCard}>
+        <Animated.View
+          style={[
+            styles.formCard,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateX: slideAnim }],
+            },
+          ]}
+        >
           {/* Step 1: Basic Patient Details */}
           {step === 1 && (
             <>
@@ -974,7 +1068,7 @@ const AddPatient: React.FC = () => {
               ))}
             </>
           )}
-        </View>
+        </Animated.View>
 
         {/* Navigation Buttons */}
         <View style={styles.buttonContainer}>
@@ -998,80 +1092,152 @@ const AddPatient: React.FC = () => {
     </KeyboardAvoidingView>
   );
 };
+
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 16,
-    backgroundColor: colors.lightGray,
+    backgroundColor: "#F8FAFC",
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 12,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 26,
+    fontWeight: "800",
     color: colors.primaryDark,
+  },
+  stepperWrapper: {
+    marginBottom: 16,
+  },
+  stepperContainer: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  stepperPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    gap: 6,
+  },
+  stepperPillActive: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#10B981",
+  },
+  stepperPillPast: {
+    backgroundColor: "#F1F5F9",
+    borderColor: "#CBD5E1",
+  },
+  stepperNumCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepperNumCircleActive: {
+    backgroundColor: "#10B981",
+  },
+  stepperNumText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  stepperNumTextActive: {
+    color: "#FFFFFF",
+  },
+  stepperLabelText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  stepperLabelTextActive: {
+    color: "#065F46",
+    fontWeight: "700",
   },
   progressContainer: {
     marginBottom: 16,
   },
+  progressTextRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
   progressText: {
     fontSize: 14,
-    color: colors.textMedium,
-    marginBottom: 6,
+    fontWeight: "700",
+    color: "#334155",
+  },
+  progressPercentText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.primaryDark,
   },
   progressBar: {
     height: 8,
     borderRadius: 4,
+    backgroundColor: "#E2E8F0",
   },
   formCard: {
     backgroundColor: colors.white,
-    borderRadius: 8,
-    padding: 16,
-    shadowColor: "#000",
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     elevation: 3,
-    marginBottom: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontWeight: "700",
     color: colors.primaryDark,
     marginBottom: 16,
   },
   label: {
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "600",
     color: colors.textDark,
     marginBottom: 8,
   },
   sublabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontStyle: "italic",
     color: colors.textLight,
     marginBottom: 12,
   },
   input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
     padding: 12,
     marginBottom: 16,
     backgroundColor: colors.white,
-    fontSize: 16,
+    fontSize: 15,
+    color: colors.textDark,
   },
   textArea: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
     padding: 12,
     marginBottom: 16,
     backgroundColor: colors.white,
-    fontSize: 16,
-    height: 100,
+    fontSize: 15,
+    height: 90,
     textAlignVertical: "top",
+    color: colors.textDark,
   },
   rowContainer: {
     flexDirection: "row",
@@ -1083,9 +1249,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   dropdownStyle: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    borderRadius: 8,
     padding: 4,
     backgroundColor: colors.white,
   },
@@ -1104,11 +1270,18 @@ const styles = StyleSheet.create({
   radioButton: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    padding: 10,
+    borderRadius: 8,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   radioText: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.textDark,
+    fontWeight: "500",
+    marginLeft: 6,
   },
   radioIndented: {
     marginLeft: 16,
@@ -1117,7 +1290,12 @@ const styles = StyleSheet.create({
   checkboxContainer: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    padding: 8,
+    borderRadius: 8,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   checkboxIndented: {
     flexDirection: "row",
@@ -1126,7 +1304,7 @@ const styles = StyleSheet.create({
     marginLeft: 24,
   },
   checkboxText: {
-    fontSize: 16,
+    fontSize: 15,
     color: colors.textDark,
     marginLeft: 8,
     flex: 1,
@@ -1134,38 +1312,55 @@ const styles = StyleSheet.create({
   durationContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "flex-start",
-    marginBottom: 16,
+    gap: 12,
+    marginBottom: 20,
+    marginTop: 6,
   },
   durationItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 12,
-    marginBottom: 8,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#CBD5E1",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   durationInput: {
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 4,
-    padding: 10,
-    width: 60,
+    borderColor: "#94A3B8",
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    width: 55,
     marginRight: 8,
     textAlign: "center",
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.textDark,
+    backgroundColor: "#F8FAFC",
   },
   durationLabel: {
     fontSize: 14,
-    color: colors.textDark,
+    fontWeight: "600",
+    color: "#475569",
+    marginRight: 4,
   },
   labelIndented: {
-    fontSize: 16,
-    fontWeight: "500",
+    fontSize: 15,
+    fontWeight: "600",
     color: colors.textDark,
     marginBottom: 8,
     marginLeft: 16,
   },
   categoryLabel: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: colors.textDark,
     marginTop: 16,
     marginBottom: 8,
@@ -1178,30 +1373,32 @@ const styles = StyleSheet.create({
   buttonContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 24,
+    marginBottom: 32,
+    gap: 12,
   },
   navButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
+    backgroundColor: "#64748B",
+    paddingVertical: 14,
     paddingHorizontal: 24,
-    borderRadius: 6,
+    borderRadius: 8,
     minWidth: 120,
     alignItems: "center",
     justifyContent: "center",
   },
   mainButton: {
     backgroundColor: colors.primaryDark,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 6,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 8,
     minWidth: 120,
     alignItems: "center",
     justifyContent: "center",
+    flex: 1,
   },
   buttonText: {
     color: colors.white,
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });
 
