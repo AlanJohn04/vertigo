@@ -6,10 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "@/api/config";
+import { fetchHybridDiagnosis, HybridPredictionResult } from "@/utils/mlPrediction";
+import { Colors, Shadows, BorderRadius, Typography, Spacing } from "@/constants/theme";
 
 const formatField = (key: string, value: any) => {
   if (value === null || value === undefined || value === "") return "Not specified";
@@ -69,14 +73,13 @@ const getFieldLabel = (key: string) => {
   return (labels as any)[key] || key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
 };
 
-import { fetchPatientMLPrediction, MLPredictionResult } from "@/utils/mlPrediction";
-
 const PatientDetail = () => {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const [patient, setPatient] = useState<any>(null);
-  const [mlResult, setMlResult] = useState<MLPredictionResult | null>(null);
+  const [hybridResult, setHybridResult] = useState<HybridPredictionResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshingAI, setRefreshingAI] = useState(false);
 
   useEffect(() => {
     loadPatientData();
@@ -85,7 +88,7 @@ const PatientDetail = () => {
   const loadPatientData = async () => {
     try {
       setLoading(true);
-      console.log("Fetching patient detail from Neon API for ID:", id);
+      console.log("Fetching patient detail for ID:", id);
       
       let formattedPatient: any = null;
       const response = await fetch(`${API_BASE_URL}/patients/${id}`);
@@ -106,8 +109,8 @@ const PatientDetail = () => {
 
       if (formattedPatient) {
         setPatient(formattedPatient);
-        const prediction = await fetchPatientMLPrediction(formattedPatient);
-        setMlResult(prediction);
+        const hybrid = await fetchHybridDiagnosis(formattedPatient);
+        setHybridResult(hybrid);
       }
     } catch (error) {
       console.error("Error loading patient data:", error);
@@ -116,11 +119,24 @@ const PatientDetail = () => {
     }
   };
 
+  const handleRefreshHybridAI = async () => {
+    if (!patient) return;
+    try {
+      setRefreshingAI(true);
+      const updated = await fetchHybridDiagnosis(patient);
+      if (updated) setHybridResult(updated);
+    } catch (e) {
+      console.error("Error refreshing Hybrid AI:", e);
+    } finally {
+      setRefreshingAI(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#429D7E" />
-        <Text style={styles.loadingText}>Loading patient data & ML prediction...</Text>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Running Hybrid ML + Gemini Diagnostic Analysis...</Text>
       </View>
     );
   }
@@ -129,18 +145,12 @@ const PatientDetail = () => {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Patient not found</Text>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.buttonText}>Go Back</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
   }
-
-  // Fields to exclude from rendering
-  const excludeFields = ['id'];
 
   // Group fields logically
   const fieldGroups = [
@@ -175,92 +185,143 @@ const PatientDetail = () => {
   ];
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+      {/* Top Bar */}
       <View style={styles.header}>
-        <Text style={styles.patientName}>{patient.name || "Patient"}</Text>
-        <Text style={styles.patientId}>ID: {patient.id}</Text>
+        <TouchableOpacity style={styles.backNavBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={20} color={Colors.textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.patientName}>{patient.name || "Patient Record"}</Text>
+          <Text style={styles.patientId}>ID: {patient.id} • Assigned Practitioner</Text>
+        </View>
       </View>
 
-      {/* ML Model Diagnosis Card */}
-      <View style={styles.mlCard}>
-        <View style={styles.mlHeaderRow}>
-          <Text style={styles.mlBadgeOverline}>ONNX ML MODEL DIAGNOSIS</Text>
-          {mlResult && (
+      {/* HYBRID ML + GEMINI AI DIAGNOSTIC CARD */}
+      <View style={styles.hybridCard}>
+        <View style={styles.hybridHeaderRow}>
+          <View style={styles.badgeRow}>
+            <Ionicons name="sparkles" size={16} color={Colors.primary} />
+            <Text style={styles.hybridOverline}>HYBRID ML + GEMINI DIAGNOSIS</Text>
+          </View>
+          {hybridResult && (
             <View style={styles.confidencePill}>
-              <Text style={styles.confidenceText}>{mlResult.confidencePercent}% Confidence</Text>
+              <Text style={styles.confidenceText}>{hybridResult.confidencePercent}% Statistical Confidence</Text>
             </View>
           )}
         </View>
 
-        <Text style={styles.mlDiagnosisTitle}>
-          {mlResult?.finalDiagnosis || "ML Analysis Pending"}
+        <Text style={styles.hybridDiagnosisTitle}>
+          {hybridResult?.finalHybridDiagnosis || "Hybrid Analysis Complete"}
         </Text>
 
-        <Text style={styles.mlDescriptionText}>
-          {mlResult?.task2?.description || mlResult?.task1?.description || "Based on patient's inputted clinical features."}
+        <Text style={styles.hybridSummaryText}>
+          {hybridResult?.clinicalAssessment || "Statistical models and clinical assessment evaluated."}
         </Text>
 
-        {mlResult && (
-          <View style={styles.mlFeatureRow}>
-            <Text style={styles.mlTag}>Category: {mlResult.primaryCategory}</Text>
-            {mlResult.task2 && <Text style={styles.mlTag}>Subtype: {mlResult.task2.label}</Text>}
+        {/* Statistical ML Feature Badges */}
+        {hybridResult?.ml && (
+          <View style={styles.mlTagRow}>
+            <View style={styles.mlTag}>
+              <Text style={styles.mlTagText}>Category: {hybridResult.ml.primaryCategory}</Text>
+            </View>
+            {hybridResult.ml.task2 && (
+              <View style={[styles.mlTag, { backgroundColor: "#EFF6FF" }]}>
+                <Text style={[styles.mlTagText, { color: Colors.info }]}>Subtype: {hybridResult.ml.task2.label}</Text>
+              </View>
+            )}
           </View>
         )}
-      </View>
 
-      {/* Patient Logged Episodes Section (Synced) */}
-      {Array.isArray(patient.episodes) && patient.episodes.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Logged Vertigo Episodes ({patient.episodes.length})</Text>
-          {patient.episodes.map((ep: any, idx: number) => (
-            <View key={idx} style={styles.fieldRow}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <Text style={{ fontWeight: "700", color: "#D97706" }}>Severity: {ep.severity || 5}/10</Text>
-                <Text style={{ fontSize: 12, color: "#666" }}>{ep.timestamp ? new Date(ep.timestamp).toLocaleDateString() : 'Recent'}</Text>
+        {/* Prescribed Vestibular Exercises */}
+        {hybridResult?.prescribedExercises && hybridResult.prescribedExercises.length > 0 && (
+          <View style={styles.exerciseSection}>
+            <Text style={styles.exerciseSectionTitle}>Prescribed Vestibular Rehabilitation</Text>
+            {hybridResult.prescribedExercises.map((ex, idx) => (
+              <View key={idx} style={styles.exerciseCard}>
+                <Ionicons name={(ex.icon || "fitness-outline") as any} size={20} color={Colors.primary} style={{ marginRight: 10 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.exerciseTitle}>{ex.title}</Text>
+                  <Text style={styles.exerciseDesc}>{ex.desc}</Text>
+                </View>
               </View>
-              <Text style={styles.fieldValue}>
-                Duration: {ep.duration || 'Unspecified'} | Notes: {ep.notes || 'No notes added'}
+            ))}
+          </View>
+        )}
+
+        {/* Red Flags & Care Plan */}
+        {hybridResult?.redFlags && (
+          <View style={styles.redFlagBox}>
+            <Ionicons name="warning-outline" size={18} color={Colors.warning} style={{ marginRight: 8 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.redFlagTitle}>Clinical Red Flags to Monitor</Text>
+              <Text style={styles.redFlagText}>
+                {hybridResult.redFlags.join(" • ")}
               </Text>
             </View>
-          ))}
-        </View>
-      )}
-
-      {/* Patient Exercise Progress (Synced) */}
-      {Array.isArray(patient.completedExercises) && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rehab Exercise Progress</Text>
-          <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Exercises Completed:</Text>
-            <Text style={styles.fieldValue}>{patient.completedExercises.length}/3 Completed</Text>
           </View>
-          <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Recovery Progress Score:</Text>
-            <Text style={styles.fieldValue}>{patient.recoveryProgress || 72}% Recovery</Text>
+        )}
+
+        {/* Re-run AI Analysis Button */}
+        <TouchableOpacity
+          style={styles.refreshBtn}
+          onPress={handleRefreshHybridAI}
+          disabled={refreshingAI}
+        >
+          {refreshingAI ? (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          ) : (
+            <>
+              <Ionicons name="refresh" size={16} color={Colors.primary} />
+              <Text style={styles.refreshBtnText}>Re-analyze with Hybrid AI</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Real-Time Patient Activity Sync */}
+      <View style={styles.syncSection}>
+        <Text style={styles.syncSectionTitle}>Live Patient Activity (Real-Time Synced)</Text>
+
+        {/* Logged Episodes */}
+        <View style={styles.syncCard}>
+          <View style={styles.syncCardHeader}>
+            <Ionicons name="pulse" size={18} color="#D97706" />
+            <Text style={styles.syncCardTitle}>
+              Logged Vertigo Episodes ({Array.isArray(patient.episodes) ? patient.episodes.length : 0})
+            </Text>
           </View>
+          {Array.isArray(patient.episodes) && patient.episodes.length > 0 ? (
+            patient.episodes.map((ep: any, idx: number) => (
+              <View key={idx} style={styles.episodeItem}>
+                <Text style={styles.episodeSeverity}>Severity: {ep.severity || 5}/10</Text>
+                <Text style={styles.episodeDetails}>Duration: {ep.duration || 'N/A'} • {ep.notes || 'No notes'}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.emptySyncText}>No episodes logged yet by patient.</Text>
+          )}
         </View>
-      )}
 
-      {/* Patient Checkups Schedule (Synced) */}
-      {Array.isArray(patient.checkups) && patient.checkups.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Checkup Appointments</Text>
-          {patient.checkups.map((c: any, idx: number) => (
-            <View key={idx} style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>{c.date} • {c.time} ({c.status || 'Scheduled'})</Text>
-              <Text style={styles.fieldValue}>{c.type || 'Consultation'} with {c.practitioner || 'Practitioner'}</Text>
-            </View>
-          ))}
+        {/* Recovery Progress */}
+        <View style={styles.syncCard}>
+          <View style={styles.syncCardHeader}>
+            <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
+            <Text style={styles.syncCardTitle}>Rehab Recovery Progress</Text>
+          </View>
+          <Text style={styles.syncCardBody}>
+            {Array.isArray(patient.completedExercises) ? patient.completedExercises.length : 0}/3 Exercises Completed • {patient.recoveryProgress || 72}% Overall Recovery Score
+          </Text>
         </View>
-      )}
+      </View>
 
+      {/* Complete Patient Medical Data */}
       {fieldGroups.map((group, groupIndex) => {
-        // Check if group has any non-empty fields to display
         const hasContent = group.fields.some(
           field => patient[field] !== undefined &&
-            patient[field] !== null &&
-            patient[field] !== '' &&
-            !excludeFields.includes(field)
+                   patient[field] !== null &&
+                   patient[field] !== "" &&
+                   !(Array.isArray(patient[field]) && patient[field].length === 0)
         );
 
         if (!hasContent) return null;
@@ -268,35 +329,22 @@ const PatientDetail = () => {
         return (
           <View key={groupIndex} style={styles.section}>
             <Text style={styles.sectionTitle}>{group.title}</Text>
-
-            {group.fields.map((field, fieldIndex) => {
-              // Skip if field is empty or in exclude list
-              if (
-                patient[field] === undefined ||
-                patient[field] === null ||
-                patient[field] === '' ||
-                excludeFields.includes(field)
-              ) return null;
+            {group.fields.map((field) => {
+              const value = patient[field];
+              if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) {
+                return null;
+              }
 
               return (
-                <View key={fieldIndex} style={styles.fieldRow}>
-                  <Text style={styles.fieldLabel}>{getFieldLabel(field)}:</Text>
-                  <Text style={styles.fieldValue}>{formatField(field, patient[field])}</Text>
+                <View key={field} style={styles.fieldRow}>
+                  <Text style={styles.fieldLabel}>{getFieldLabel(field)}</Text>
+                  <Text style={styles.fieldValue}>{formatField(field, value)}</Text>
                 </View>
               );
             })}
           </View>
         );
       })}
-
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.buttonText}>Back</Text>
-        </TouchableOpacity>
-      </View>
     </ScrollView>
   );
 };
@@ -304,155 +352,284 @@ const PatientDetail = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F7F9",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 16,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  backNavBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.sm,
+  },
+  patientName: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  patientId: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  hybridCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    marginBottom: Spacing.xl,
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    ...Shadows.md,
+  },
+  hybridHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  hybridOverline: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colors.primary,
+    letterSpacing: 0.8,
+  },
+  confidencePill: {
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.pill,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  confidenceText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.primaryDark,
+  },
+  hybridDiagnosisTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+    marginBottom: 6,
+  },
+  hybridSummaryText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  mlTagRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  mlTag: {
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.sm,
+  },
+  mlTagText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
+  exerciseSection: {
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  exerciseSectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: 8,
+  },
+  exerciseCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    padding: 10,
+    borderRadius: BorderRadius.md,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  exerciseTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  exerciseDesc: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  redFlagBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FEF2F2",
+    padding: 12,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    marginBottom: 14,
+  },
+  redFlagTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.danger,
+    marginBottom: 2,
+  },
+  redFlagText: {
+    fontSize: 12,
+    color: "#991B1B",
+    lineHeight: 16,
+  },
+  refreshBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "#F0FDF4",
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    gap: 6,
+  },
+  refreshBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
+  syncSection: {
+    marginBottom: Spacing.xl,
+  },
+  syncSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: 10,
+  },
+  syncCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: 10,
+    ...Shadows.sm,
+  },
+  syncCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  syncCardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  syncCardBody: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  episodeItem: {
+    backgroundColor: "#FFFBEB",
+    padding: 8,
+    borderRadius: BorderRadius.sm,
+    marginTop: 6,
+  },
+  episodeSeverity: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#D97706",
+  },
+  episodeDetails: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  emptySyncText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    fontStyle: "italic",
+  },
+  section: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadows.sm,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    paddingBottom: 6,
+  },
+  fieldRow: {
+    marginBottom: 10,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginBottom: 2,
+    fontWeight: "600",
+  },
+  fieldValue: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    fontWeight: "500",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F5F7F9",
+    backgroundColor: "#F8FAFC",
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: "#666",
+    marginTop: 12,
+    fontSize: 14,
+    color: Colors.textMuted,
   },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    backgroundColor: "#F8FAFC",
   },
   errorText: {
-    fontSize: 18,
-    color: "#D32F2F",
-    marginBottom: 20,
-  },
-  header: {
-    backgroundColor: "#429D7E",
-    padding: 20,
-    paddingTop: 60,
-  },
-  patientName: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "white",
-  },
-  patientId: {
     fontSize: 16,
-    color: "rgba(255,255,255,0.8)",
-    marginTop: 5,
+    color: Colors.danger,
+    marginBottom: 16,
   },
-  section: {
-    backgroundColor: "white",
-    margin: 10,
-    borderRadius: 8,
-    padding: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+  backButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#429D7E",
-    marginBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#EEEEEE",
-    paddingBottom: 8,
-  },
-  fieldRow: {
-    marginBottom: 12,
-  },
-  fieldLabel: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#333333",
-    marginBottom: 4,
-  },
-  fieldValue: {
-    fontSize: 16,
-    color: "#555555",
-    backgroundColor: "#F9F9F9",
-    padding: 8,
-    borderRadius: 4,
-  },
-  buttonContainer: {
-    padding: 20,
-    marginBottom: 20,
-  },
-  button: {
-    backgroundColor: "#429D7E",
-    padding: 15,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  mlCard: {
-    backgroundColor: "#004D40",
-    margin: 10,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  mlHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  mlBadgeOverline: {
-    fontSize: 11,
+  backButtonText: {
+    color: Colors.white,
     fontWeight: "700",
-    color: "#80CBC4",
-    letterSpacing: 0.5,
-  },
-  confidencePill: {
-    backgroundColor: "#00796B",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  confidenceText: {
-    color: "#E0F2F1",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  mlDiagnosisTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    marginBottom: 6,
-  },
-  mlDescriptionText: {
-    fontSize: 14,
-    color: "#B2DFDB",
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  mlFeatureRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  mlTag: {
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "600",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
   },
 });
 

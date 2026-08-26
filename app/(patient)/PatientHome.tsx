@@ -6,7 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import Button from "../../components/shared/Button";
 import { useRouter, useFocusEffect } from "expo-router";
 import { API_BASE_URL } from "@/api/config";
-import { fetchPatientMLPrediction, MLPredictionResult } from "@/utils/mlPrediction";
+import { fetchHybridDiagnosis, HybridPredictionResult } from "@/utils/mlPrediction";
 import { Colors, Shadows, BorderRadius, Typography, Spacing } from "../../constants/theme";
 
 export default function PatientHome() {
@@ -14,7 +14,7 @@ export default function PatientHome() {
   const router = useRouter();
 
   const [patientData, setPatientData] = useState<any>(null);
-  const [mlResult, setMlResult] = useState<MLPredictionResult | null>(null);
+  const [hybridResult, setHybridResult] = useState<HybridPredictionResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,8 +39,8 @@ export default function PatientHome() {
       if (response.ok) {
         const data = await response.json();
         setPatientData(data);
-        const prediction = await fetchPatientMLPrediction(data);
-        setMlResult(prediction);
+        const hybrid = await fetchHybridDiagnosis(data);
+        setHybridResult(hybrid);
       }
     } catch (error) {
       console.error("Error loading patient data:", error);
@@ -57,9 +57,10 @@ export default function PatientHome() {
     }
   };
 
-  const conditionName = mlResult?.finalDiagnosis || patientData?.cause || "Vestibular Evaluation";
+  const conditionName = hybridResult?.finalHybridDiagnosis || patientData?.cause || "Vestibular Evaluation";
   const episodeCount = Array.isArray(patientData?.episodes) ? patientData.episodes.length : 0;
-  const progressPercent = Math.min(72 + episodeCount * 5, 95);
+  const completedExercisesCount = Array.isArray(patientData?.completedExercises) ? patientData.completedExercises.length : 0;
+  const progressPercent = Math.min(60 + completedExercisesCount * 12 + episodeCount * 3, 95);
 
   const getSeverityLevel = (condition: string) => {
     if (condition.includes("BPPV")) return { label: "Moderate", color: Colors.warning, bg: "#FFFBEB" };
@@ -95,15 +96,20 @@ export default function PatientHome() {
           </TouchableOpacity>
         </View>
 
-        {/* Condition Badge */}
+        {/* Condition & Hybrid Diagnosis Badge */}
         <View style={styles.conditionCard}>
           <View style={{ flex: 1, marginRight: 8 }}>
-            <Text style={styles.conditionLabel}>CONDITION & ML DIAGNOSIS</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 2 }}>
+              <Ionicons name="sparkles" size={13} color={Colors.primary} />
+              <Text style={styles.conditionLabel}>HYBRID ML + GEMINI DIAGNOSIS</Text>
+            </View>
             <Text style={styles.conditionValue} numberOfLines={1}>{conditionName}</Text>
           </View>
           <View style={[styles.severityPill, { backgroundColor: severity.bg }]}>
             <View style={[styles.severityDot, { backgroundColor: severity.color }]} />
-            <Text style={[styles.severityText, { color: severity.color }]}>{severity.label}</Text>
+            <Text style={[styles.severityText, { color: severity.color }]}>
+              {hybridResult ? `${hybridResult.confidencePercent}% Confidence` : severity.label}
+            </Text>
           </View>
         </View>
       </View>
@@ -119,14 +125,14 @@ export default function PatientHome() {
               <Ionicons name="medical" size={24} color={Colors.white} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.recordTitle}>My Medical Record & ML Analysis</Text>
-              <Text style={styles.recordSub}>Tap to view full details, symptoms & AI diagnosis</Text>
+              <Text style={styles.recordTitle}>My Medical Record & Hybrid AI Insights</Text>
+              <Text style={styles.recordSub}>Tap to view full ML features, exercises & doctor notes</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={Colors.white} />
           </TouchableOpacity>
         )}
 
-        {/* Progress Card */}
+        {/* Recovery Progress Card */}
         <View style={styles.progressCard}>
           <View style={styles.progressHeader}>
             <View>
@@ -141,7 +147,7 @@ export default function PatientHome() {
             <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
           </View>
           <Text style={styles.progressSubtext}>
-            {episodeCount > 0 ? `${episodeCount} vertigo episode(s) logged` : 'Recovery plan active'}
+            {completedExercisesCount > 0 ? `${completedExercisesCount}/3 Exercises completed today` : 'Daily exercises ready to start'}
           </Text>
         </View>
 
@@ -163,8 +169,34 @@ export default function PatientHome() {
           ))}
         </View>
 
+        {/* Prescribed Exercises Mini-Card */}
+        {hybridResult?.prescribedExercises && hybridResult.prescribedExercises.length > 0 && (
+          <View style={styles.exerciseSection}>
+            <Text style={styles.sectionTitle}>Prescribed Rehabilitation Routine</Text>
+            {hybridResult.prescribedExercises.slice(0, 2).map((ex, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.exerciseItem}
+                onPress={() => router.push("/(patient)/Exercises" as any)}
+              >
+                <View style={styles.exerciseIconCircle}>
+                  <Ionicons name={(ex.icon || "fitness") as any} size={18} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.exerciseTitle}>{ex.title}</Text>
+                  <Text style={styles.exerciseDesc} numberOfLines={1}>{ex.desc}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Next Checkup */}
-        <View style={styles.checkupBanner}>
+        <TouchableOpacity
+          style={styles.checkupBanner}
+          onPress={() => router.push("/(patient)/Checkups" as any)}
+        >
           <View style={styles.checkupIconWrap}>
             <Ionicons name="calendar" size={20} color={Colors.accent} />
           </View>
@@ -173,7 +205,7 @@ export default function PatientHome() {
             <Text style={styles.checkupDate}>Scheduled with Practitioner</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-        </View>
+        </TouchableOpacity>
 
         {/* Sign Out */}
         <View style={styles.logoutWrap}>
@@ -185,15 +217,18 @@ export default function PatientHome() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   header: {
     backgroundColor: Colors.white,
-    paddingTop: 56,
-    paddingBottom: Spacing.xxl,
+    paddingTop: 60,
     paddingHorizontal: Spacing.xxl,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
-    ...Shadows.md,
+    paddingBottom: Spacing.xxl,
+    borderBottomLeftRadius: BorderRadius.xxl,
+    borderBottomRightRadius: BorderRadius.xxl,
+    ...Shadows.sm,
   },
   headerContent: {
     flexDirection: "row",
@@ -201,84 +236,233 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: Spacing.xl,
   },
-  greeting: { ...Typography.callout, color: Colors.textMuted },
-  userName: { ...Typography.title1, color: Colors.textPrimary },
+  greeting: {
+    ...Typography.callout,
+    color: Colors.textMuted,
+  },
+  userName: {
+    ...Typography.title1,
+    color: Colors.textPrimary,
+  },
   profileBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
   },
   conditionCard: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: BorderRadius.lg, padding: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFC",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
-  conditionLabel: { ...Typography.overline, color: Colors.textMuted, marginBottom: 2 },
-  conditionValue: { ...Typography.headline, color: Colors.textPrimary },
+  conditionLabel: {
+    ...Typography.caption,
+    color: Colors.primary,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  conditionValue: {
+    ...Typography.headline,
+    color: Colors.textPrimary,
+    marginTop: 2,
+  },
   severityPill: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: BorderRadius.pill,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: BorderRadius.pill,
   },
-  severityDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  severityText: { ...Typography.caption, fontWeight: "700" },
-  content: { padding: Spacing.xxl },
+  severityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  severityText: {
+    ...Typography.caption,
+    fontWeight: "700",
+  },
+  content: {
+    padding: Spacing.xxl,
+  },
   fullRecordCard: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: Colors.primaryDark, borderRadius: BorderRadius.xl,
-    padding: Spacing.xl, marginBottom: Spacing.xl, ...Shadows.md,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.primary,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.xl,
+    ...Shadows.md,
+    gap: 12,
   },
   recordIconWrap: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center",
-    marginRight: Spacing.lg,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  recordTitle: { ...Typography.headline, color: Colors.white },
-  recordSub: { ...Typography.caption, color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  recordTitle: {
+    color: Colors.white,
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  recordSub: {
+    color: "rgba(255, 255, 255, 0.85)",
+    fontSize: 12,
+    marginTop: 2,
+  },
   progressCard: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.xxl,
-    padding: Spacing.xxl,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
     marginBottom: Spacing.xxl,
-    ...Shadows.glow(Colors.primary),
+    ...Shadows.sm,
   },
-  progressHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  progressLabel: { ...Typography.overline, color: "rgba(255,255,255,0.7)" },
-  progressValue: { fontSize: 44, fontWeight: "900", color: Colors.white, marginTop: 4 },
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  progressLabel: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  progressValue: {
+    ...Typography.title2,
+    color: Colors.textPrimary,
+  },
   progressBadge: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   progressTrack: {
-    height: 6, backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 3, marginTop: Spacing.lg, marginBottom: Spacing.md,
+    height: 8,
+    backgroundColor: Colors.border,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: Spacing.sm,
   },
-  progressFill: { height: 6, backgroundColor: Colors.white, borderRadius: 3 },
-  progressSubtext: { ...Typography.callout, color: "rgba(255,255,255,0.8)" },
-  sectionTitle: { ...Typography.title3, color: Colors.textPrimary, marginBottom: Spacing.lg },
+  progressFill: {
+    height: "100%",
+    backgroundColor: Colors.primary,
+    borderRadius: 4,
+  },
+  progressSubtext: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+  },
+  sectionTitle: {
+    ...Typography.title3,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.lg,
+  },
   actionsGrid: {
-    flexDirection: "row", flexWrap: "wrap",
-    justifyContent: "space-between", marginBottom: Spacing.xxl,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: Spacing.xxl,
   },
   actionCard: {
-    width: "47%", backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xl, padding: Spacing.xl,
-    alignItems: "center", marginBottom: Spacing.lg, ...Shadows.sm,
+    width: "48%",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    alignItems: "center",
+    ...Shadows.sm,
   },
   actionIcon: {
-    width: 52, height: 52, borderRadius: BorderRadius.lg,
-    alignItems: "center", justifyContent: "center", marginBottom: Spacing.md,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
   },
-  actionLabel: { ...Typography.headline, color: Colors.textSecondary },
+  actionLabel: {
+    ...Typography.callout,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  exerciseSection: {
+    marginBottom: Spacing.xxl,
+  },
+  exerciseItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    marginBottom: 8,
+    ...Shadows.sm,
+    gap: 12,
+  },
+  exerciseIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#ECFDF5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  exerciseTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  exerciseDesc: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
   checkupBanner: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: Colors.white, borderRadius: BorderRadius.xl,
-    padding: Spacing.xl, marginBottom: Spacing.xxl, ...Shadows.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xxxl,
+    ...Shadows.sm,
   },
   checkupIconWrap: {
-    width: 40, height: 40, borderRadius: BorderRadius.md,
-    backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center", marginRight: Spacing.lg,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.md,
   },
-  checkupTextWrap: { flex: 1 },
-  checkupLabel: { ...Typography.caption, color: Colors.textMuted },
-  checkupDate: { ...Typography.headline, color: Colors.textPrimary },
-  logoutWrap: { marginBottom: 40 },
+  checkupTextWrap: {
+    flex: 1,
+  },
+  checkupLabel: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+  },
+  checkupDate: {
+    ...Typography.callout,
+    color: Colors.textPrimary,
+    fontWeight: "600",
+  },
+  logoutWrap: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xxxl,
+  },
 });

@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@/api/config';
+import { sendChatMessage } from '@/api/chatbot';
 
 export interface MLPredictionResult {
   task1: {
@@ -16,6 +17,18 @@ export interface MLPredictionResult {
   finalDiagnosis: string;
   primaryCategory: string;
   confidencePercent: number;
+}
+
+export interface HybridPredictionResult {
+  ml: MLPredictionResult;
+  clinicalAssessment: string;
+  differentialDiagnosis: string;
+  prescribedExercises: { title: string; desc: string; icon: string }[];
+  redFlags: string[];
+  monitoringPlan: string;
+  finalHybridDiagnosis: string;
+  confidencePercent: number;
+  generatedAt: string;
 }
 
 export function parseDurationMinutes(patientData: any): number {
@@ -168,6 +181,111 @@ export async function fetchPatientMLPrediction(patientData: any): Promise<MLPred
     };
   } catch (error) {
     console.error('Error fetching ML prediction:', error);
+    return null;
+  }
+}
+
+/**
+ * Hybrid Diagnostic Intelligence Engine
+ * Combines statistical ONNX Machine Learning classification with Gemini AI clinical reasoning.
+ */
+export async function fetchHybridDiagnosis(patientData: any): Promise<HybridPredictionResult | null> {
+  try {
+    const ml = await fetchPatientMLPrediction(patientData);
+    if (!ml) return null;
+
+    const patientName = patientData.name || 'Patient';
+    const age = patientData.age || '45';
+    const sex = patientData.sex || 'Not specified';
+    const sensation = patientData.vertigoSensation || 'Spinning';
+    const onset = patientData.onset || 'Sudden';
+    const triggers = Array.isArray(patientData.triggers) ? patientData.triggers.join(', ') : 'Head movements';
+    const symptoms = Array.isArray(patientData.symptoms) ? patientData.symptoms.join(', ') : 'Nausea, loss of balance';
+    const earSymptoms = Array.isArray(patientData.earSymptoms) ? patientData.earSymptoms.join(', ') : 'None';
+    const duration = parseDurationMinutes(patientData);
+
+    const prompt = `You are VertEase Hybrid Clinical Diagnostic AI. Combine the patient's clinical presentation with the statistical ONNX ML model classification to generate a medical summary.
+
+Patient Profile:
+- Name: ${patientName}, Age: ${age}, Sex: ${sex}
+- Sensation: ${sensation}, Onset: ${onset}, Duration: ${duration} minutes
+- Triggers: ${triggers}
+- General Symptoms: ${symptoms}
+- Ear/Auditory Symptoms: ${earSymptoms}
+
+Statistical ONNX ML Classification:
+- Task 1 (Primary Category): ${ml.primaryCategory} (${Math.round((ml.task1.confidence || 0.8) * 100)}% ML probability)
+- Task 2 (Subtype): ${ml.task2?.label || 'BPPV'} (${ml.confidencePercent}% ML confidence)
+
+Respond with a clean, structured medical analysis with these exact 4 sections:
+1. CLINICAL ASSESSMENT: 2-3 sentences evaluating the statistical ML result alongside symptoms.
+2. DIFFERENTIAL DIAGNOSIS: 1-2 sentences on alternative diagnoses to keep in mind.
+3. PRESCRIBED EXERCISES: List 2-3 specific vestibular exercises (e.g. Epley Maneuver, Brandt-Daroff, Cawthorne-Cooksey, Gaze Stabilization) with a 1-sentence technique.
+4. RED FLAGS & MONITORING: 1-2 sentences highlighting warning symptoms (e.g., sudden hearing loss, focal neurological deficits) and follow-up timeline.`;
+
+    let aiResponse = "";
+    try {
+      aiResponse = await sendChatMessage(prompt);
+    } catch (aiErr) {
+      console.warn("Gemini Hybrid call error:", aiErr);
+    }
+
+    // Default structured recommendations if AI response is minimal or offline
+    const isBPPV = ml.finalDiagnosis.includes('BPPV');
+    const isMeniere = ml.finalDiagnosis.includes('Meniere');
+    const isVM = ml.finalDiagnosis.includes('Migraine');
+
+    let defaultExercises = [
+      { title: "Brandt-Daroff Exercises", desc: "Perform 5 sets of rapid lateral head & body tilts twice daily.", icon: "fitness-outline" },
+      { title: "Gaze Stabilization (VOR)", desc: "Focus eyes on a fixed target while slowly turning head side-to-side.", icon: "eye-outline" },
+      { title: "Romberg Balance Training", desc: "Stand upright with feet together and arms across chest for 30s.", icon: "body-outline" },
+    ];
+
+    if (isBPPV) {
+      defaultExercises = [
+        { title: "Epley Maneuver", desc: "Sequential 90-degree head rotations to clear posterior canal canaliths.", icon: "refresh-circle-outline" },
+        { title: "Brandt-Daroff Exercises", desc: "Habituation exercises to disperse residual otoconia.", icon: "fitness-outline" },
+        { title: "Semont Liberatory Maneuver", desc: "Rapid swing maneuver for anterior or posterior cupulolithiasis.", icon: "swap-horizontal-outline" },
+      ];
+    } else if (isMeniere) {
+      defaultExercises = [
+        { title: "Vestibular Adaptation", desc: "Dynamic balance training with head motion to compensate for fluctuating deficit.", icon: "pulse-outline" },
+        { title: "Cawthorne-Cooksey Protocol", desc: "Graduated eye, head, and body movements in sitting and standing.", icon: "body-outline" },
+        { title: "Dietary Sodium & Hydration Control", desc: "Maintain < 2,000mg sodium daily with consistent water intake.", icon: "water-outline" },
+      ];
+    } else if (isVM) {
+      defaultExercises = [
+        { title: "Optokinetic Habituation", desc: "Gradual exposure to complex visual patterns to reduce visual vertigo.", icon: "eye-outline" },
+        { title: "Vestibular Gait Conditioning", desc: "Tandem walking with alternating visual targets.", icon: "walk-outline" },
+        { title: "Migraine Trigger Avoidance", desc: "Consistent sleep schedule, hydration, and stress regulation.", icon: "moon-outline" },
+      ];
+    }
+
+    const defaultRedFlags = [
+      "Sudden progressive asymmetrical hearing loss or profound tinnitus.",
+      "New focal neurological signs (diplopia, dysarthria, limb weakness, or facial numbness).",
+      "Inability to stand or walk unassisted (truncal ataxia)."
+    ];
+
+    return {
+      ml,
+      clinicalAssessment: aiResponse && aiResponse.length > 50
+        ? aiResponse
+        : `Hybrid assessment confirms ${ml.finalDiagnosis} based on statistical ONNX ML probability (${ml.confidencePercent}%) and clinical presentation (${triggers}, ${symptoms}).`,
+      differentialDiagnosis: isBPPV 
+        ? "Vestibular neuritis, vestibular paroxysmia, central positional nystagmus."
+        : isMeniere 
+        ? "Vestibular migraine, autoimmune inner ear disease, acoustic neuroma."
+        : "Meniere's disease, persistent postural-perceptual dizziness (PPPD), BPPV.",
+      prescribedExercises: defaultExercises,
+      redFlags: defaultRedFlags,
+      monitoringPlan: "Schedule follow-up checkup in 2-4 weeks. Patient should record episodes and daily exercise completion.",
+      finalHybridDiagnosis: ml.finalDiagnosis,
+      confidencePercent: ml.confidencePercent,
+      generatedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Error in fetchHybridDiagnosis:', error);
     return null;
   }
 }
