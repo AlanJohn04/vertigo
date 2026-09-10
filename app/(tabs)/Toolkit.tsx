@@ -122,6 +122,6 @@ const styles = StyleSheet.create({
   },
   cardSubtitle: {
     ...Typography.caption,
-    color: Colors.textMedium,
+    color: Colors.textSecondary,
   },
 });

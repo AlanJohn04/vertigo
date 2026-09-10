@@ -1,16 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 import { Redirect } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useAuth } from "../api/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Colors, Typography } from "../constants/theme";
+import LogoAnimation from "../components/LogoAnimation";
 
 export default function Index() {
   const { user, loading } = useAuth();
   const [disclaimerAccepted, setDisclaimerAccepted] = useState<boolean | null>(null);
   const [checkingStorage, setCheckingStorage] = useState(true);
+  const [minSplashDone, setMinSplashDone] = useState(false);
 
   useEffect(() => {
+    // Keep splash animation visible for at least 2.5 seconds for complete spiral animation
+    const timer = setTimeout(() => {
+      setMinSplashDone(true);
+    }, 2500);
+
     const checkDisclaimer = async () => {
       try {
         const value = await AsyncStorage.getItem("disclaimerAccepted");
@@ -21,20 +28,25 @@ export default function Index() {
         setCheckingStorage(false);
       }
     };
+
     checkDisclaimer();
+
+    return () => clearTimeout(timer);
   }, []);
 
-  if (loading || checkingStorage) {
+  if (loading || checkingStorage || !minSplashDone) {
     return (
       <View style={styles.container}>
+        <StatusBar style="light" />
         <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>V</Text>
-          </View>
-          <Text style={styles.appName}>VertEase</Text>
+          <LogoAnimation size={240} rounded={false} />
+          <Text style={styles.appName}>VertiDx</Text>
+          <Text style={styles.appTagline}>AI-Powered Vestibular Diagnostics</Text>
         </View>
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 32 }} />
-        <Text style={styles.loadingText}>Getting things ready...</Text>
+        <View style={styles.footer}>
+          <ActivityIndicator size="small" color="#ffffff" />
+          <Text style={styles.loadingText}>Initializing...</Text>
+        </View>
       </View>
     );
   }
@@ -56,37 +68,35 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.background,
+    backgroundColor: "#018b60",
   },
   logoContainer: {
     alignItems: "center",
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  logoText: {
-    fontSize: 36,
-    fontWeight: "900",
-    color: Colors.white,
-  },
   appName: {
-    ...Typography.title1,
-    color: Colors.textPrimary,
+    fontSize: 34,
+    fontWeight: "900",
+    color: "#ffffff",
+    letterSpacing: 0.8,
+    marginTop: 20,
+  },
+  appTagline: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.88)",
+    marginTop: 6,
+    letterSpacing: 0.3,
+  },
+  footer: {
+    position: "absolute",
+    bottom: 52,
+    alignItems: "center",
   },
   loadingText: {
-    ...Typography.callout,
-    color: Colors.textMuted,
-    marginTop: 12,
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.85)",
+    marginTop: 10,
+    fontWeight: "500",
   },
 });
+

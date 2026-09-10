@@ -20,6 +20,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { API_BASE_URL } from "@/api/config";
 import { useAuth } from "@/api/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Spacing, BorderRadius, Typography } from "@/constants/theme";
 
 const colors = {
   primary: "#4db6ac",

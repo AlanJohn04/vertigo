@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   },
   text: {
     ...Typography.body,
-    color: Colors.textMedium,
+    color: Colors.textSecondary,
     marginBottom: Spacing.md,
     lineHeight: 24,
   },

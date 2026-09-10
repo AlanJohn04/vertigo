@@ -1,8 +1,9 @@
 import React, { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useAuth } from "../../api/AuthContext";
-import { Colors, Typography } from "../../constants/theme";
+import LogoAnimation from "../LogoAnimation";
 
 interface ProtectedRouteProps { children: React.ReactNode; }
 
@@ -47,12 +48,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   if (!DEV_BYPASS_AUTH && loading) {
     return (
-      <View style={styles.container}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoText}>V</Text>
+      <View style={styles.loadingContainer}>
+        <StatusBar style="light" />
+        <View style={styles.brandContent}>
+          <LogoAnimation size={240} rounded={false} />
+          <Text style={styles.brandTitle}>VertiDx</Text>
+          <Text style={styles.brandSubtitle}>AI-Powered Vestibular Diagnostics</Text>
         </View>
-        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 24 }} />
-        <Text style={styles.loadingText}>Loading...</Text>
+        <View style={styles.loadingWrapper}>
+          <ActivityIndicator size="small" color="#ffffff" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
       </View>
     );
   }
@@ -60,22 +66,40 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: Colors.background,
+    backgroundColor: "#018b60",
   },
-  logoCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.primary,
+  brandContent: {
     alignItems: "center",
-    justifyContent: "center",
   },
-  logoText: { fontSize: 28, fontWeight: "900", color: Colors.white },
-  loadingText: { ...Typography.callout, color: Colors.textMuted, marginTop: 12 },
+  brandTitle: {
+    fontSize: 34,
+    fontWeight: "900",
+    color: "#ffffff",
+    letterSpacing: 0.8,
+    marginTop: 20,
+  },
+  brandSubtitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.88)",
+    marginTop: 6,
+    letterSpacing: 0.3,
+  },
+  loadingWrapper: {
+    position: "absolute",
+    bottom: 52,
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.85)",
+    marginTop: 10,
+    fontWeight: "500",
+  },
 });
 
 export default ProtectedRoute;
