@@ -17,7 +17,9 @@ import { useRouter } from "expo-router";
 import Button from "../../components/shared/Button";
 import { useAuth } from "../../api/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Checkbox } from "react-native-paper";
 import { Colors, Shadows, BorderRadius, Typography, Spacing } from "../../constants/theme";
+import LogoAnimation from "../../components/LogoAnimation";
 
 export default function SignIn() {
   const router = useRouter();
@@ -26,12 +28,14 @@ export default function SignIn() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const { signIn } = useAuth();
 
   const validateForm = () => {
     if (!email.trim()) { setError("Please enter your email address"); return false; }
     if (!password) { setError("Please enter your password"); return false; }
+    if (!agreedToTerms) { setError("Please accept the terms and conditions"); return false; }
     setError("");
     return true;
   };
@@ -80,11 +84,9 @@ export default function SignIn() {
 
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="lock-closed" size={28} color={Colors.primary} />
-          </View>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Sign in to continue your journey</Text>
+          <LogoAnimation size={120} />
+          <Text style={[styles.title, { marginTop: 20, color: "#166534" }]}>VertiDx</Text>
+          <Text style={styles.subtitle}>Decode the Vertigo</Text>
         </View>
 
         {/* Error */}
@@ -154,10 +156,22 @@ export default function SignIn() {
           </View>
         )}
 
+        {/* Terms Checkbox */}
+        <View style={styles.checkboxContainer}>
+          <Checkbox
+            status={agreedToTerms ? 'checked' : 'unchecked'}
+            onPress={() => setAgreedToTerms(!agreedToTerms)}
+            color={Colors.primary}
+          />
+          <Text style={styles.termsText}>
+            Please accept the <Text style={styles.termsLink} onPress={() => router.push("/(auth)/Terms")}>terms and conditions</Text>
+          </Text>
+        </View>
+
         {/* Footer */}
-        <Pressable onPress={() => router.push("/typeOfUser")} disabled={isLoading}>
+        <Pressable onPress={() => router.push("/(auth)/SignUp")} disabled={isLoading}>
           <Text style={styles.footerText}>
-            Don't have an account? <Text style={styles.footerLink}>Sign Up</Text>
+            Not a member yet, Please <Text style={styles.footerLink}>sign up</Text>
           </Text>
         </Pressable>
       </ScrollView>
@@ -279,5 +293,21 @@ const styles = StyleSheet.create({
   footerLink: {
     color: Colors.primary,
     fontWeight: "700",
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.xs,
+  },
+  termsText: {
+    ...Typography.callout,
+    color: Colors.textPrimary,
+    marginLeft: Spacing.sm,
+  },
+  termsLink: {
+    color: Colors.primary,
+    fontWeight: "600",
+    textDecorationLine: "underline",
   },
 });

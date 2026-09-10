@@ -15,12 +15,13 @@ import { Colors, Shadows, BorderRadius, Typography, Spacing } from "../../consta
 
 export default function SignUp() {
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const userRole = (params.role as UserRole) || "patient";
+  const [userRole, setUserRole] = useState<UserRole>("patient");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [specialty, setSpecialty] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -96,14 +97,19 @@ export default function SignUp() {
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>
-            Register as a {isPatient ? "Patient" : "Healthcare Provider"}
-          </Text>
-          <View style={[styles.roleBadge, isPatient ? styles.patientBadge : styles.practitionerBadge]}>
-            <Ionicons name={isPatient ? "heart" : "medkit"} size={12} color={Colors.white} />
-            <Text style={styles.roleBadgeText}>{isPatient ? "PATIENT" : "PRACTITIONER"}</Text>
-          </View>
+          <Text style={styles.title}>SIGN UP</Text>
+        </View>
+
+        {/* Role Selection */}
+        <View style={styles.roleSelectionContainer}>
+          <Text style={styles.roleText}>Are you a medical practitioner</Text>
+          <TouchableOpacity onPress={() => setUserRole("practitioner")} style={styles.radioWrapper}>
+            <Ionicons name={userRole === "practitioner" ? "radio-button-on" : "radio-button-off"} size={24} color={Colors.primary} />
+          </TouchableOpacity>
+          <Text style={styles.roleText}>. Or a Patient</Text>
+          <TouchableOpacity onPress={() => setUserRole("patient")} style={styles.radioWrapper}>
+            <Ionicons name={userRole === "patient" ? "radio-button-on" : "radio-button-off"} size={24} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
 
         {/* Avatar Picker */}
@@ -132,8 +138,9 @@ export default function SignUp() {
         {/* Form */}
         <View style={styles.form}>
           {[
-            { label: "Full Name", icon: "person-outline", value: fullName, setter: setFullName, placeholder: "Dr. John Doe", kb: "default" as const },
-            { label: "Email", icon: "mail-outline", value: email, setter: setEmail, placeholder: "your@email.com", kb: "email-address" as const },
+            { label: "Enter username", icon: "person-outline", value: fullName, setter: setFullName, placeholder: "Username", kb: "default" as const },
+            { label: "Enter your email", icon: "mail-outline", value: email, setter: setEmail, placeholder: "your@email.com", kb: "email-address" as const },
+            { label: "Verify email – please enter OTP:", icon: "chatbubble-ellipses-outline", value: otp, setter: setOtp, placeholder: "123456", kb: "numeric" as const },
           ].map((field, i) => (
             <View key={i} style={styles.inputGroup}>
               <Text style={styles.label}>{field.label}</Text>
@@ -154,7 +161,7 @@ export default function SignUp() {
           ))}
 
           {[
-            { label: "Password", value: password, setter: setPassword, placeholder: "Min 6 characters" },
+            { label: "Create password", value: password, setter: setPassword, placeholder: "Min 6 characters" },
             { label: "Confirm Password", value: confirmPassword, setter: setConfirmPassword, placeholder: "Re-enter password" },
           ].map((field, i) => (
             <View key={i} style={styles.inputGroup}>
@@ -173,6 +180,24 @@ export default function SignUp() {
               </View>
             </View>
           ))}
+
+          {!isPatient && (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { marginBottom: Spacing.sm }]}>If you are a Medical Practitioner</Text>
+              <Text style={styles.label}>Please enter your specialty</Text>
+              <View style={styles.inputWrap}>
+                <Ionicons name="medkit-outline" size={18} color={Colors.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. Neurologist"
+                  placeholderTextColor={Colors.textMuted}
+                  value={specialty}
+                  onChangeText={setSpecialty}
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Footer */}
@@ -190,7 +215,7 @@ export default function SignUp() {
           </View>
         ) : (
           <View style={styles.buttonWrap}>
-            <Button text="Create Account" onPress={handleSignUp} disabled={isLoading} />
+            <Button text="Submit information" onPress={handleSignUp} disabled={isLoading} />
           </View>
         )}
       </ScrollView>
@@ -257,4 +282,18 @@ const styles = StyleSheet.create({
   loadingWrap: { alignItems: "center", marginVertical: Spacing.xxl },
   loadingLabel: { ...Typography.callout, color: Colors.textMuted, marginTop: Spacing.sm },
   buttonWrap: { paddingBottom: 40 },
+  roleSelectionContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.xxl,
+    flexWrap: "wrap",
+  },
+  roleText: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+  },
+  radioWrapper: {
+    paddingHorizontal: 5,
+  },
 });

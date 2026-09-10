@@ -82,7 +82,7 @@ const AddPatient: React.FC = () => {
   }, [isEditing, patientId]);
 
   const [step, setStep] = useState(1);
-  const totalSteps = 10;
+  const totalSteps = 16;
 
   const [formData, setFormData] = useState({
     id: generatePatientId(),
@@ -91,15 +91,22 @@ const AddPatient: React.FC = () => {
     patientId: "",
     age: "",
     sex: "",
+    comorbidities: [] as string[],
+    otherComorbidity: "",
+    isTrueVertigo: "", // Yes / No
     onset: "",
     duration: { minutes: "", hours: "", days: "", months: "", years: "" },
     vertigoSensation: "",
     episodicOrPersistent: "",
     episodeDuration: { seconds: "", minutes: "", hours: "", days: "" },
     remission: "",
+    vertigoProgression: "", // Worsening, Static, Improving
     triggers: [] as string[],
     headMovementEffect: "",
     headInjury: "",
+    recentAirTravelOrDiving: "", // Yes / No
+    earMastoidSurgery: "", // Yes / No
+    previousVertigoDiagnosis: "", // Yes / No
     symptoms: [] as string[],
     earSymptoms: [] as string[],
     hearingLossSide: "",
@@ -112,7 +119,9 @@ const AddPatient: React.FC = () => {
     antipsychotics: [] as string[],
     ototoxicDrugs: [] as string[],
     medicationsTaken: [] as string[],
-    comorbidities: [] as string[],
+    otherMedications: "",
+    treatmentHistory: "", // History of rehab etc.
+    additionalInfo: "", // Free text for final step
     cause: "",
     vertigo: "",
   });
@@ -248,22 +257,12 @@ const AddPatient: React.FC = () => {
                 editable={false}
               />
 
-              <Text style={styles.label}>Patient Name</Text>
+              <Text style={styles.label}>Patient Name (Optional)</Text>
               <TextInput
                 style={styles.input}
                 value={formData.name}
                 placeholder="Enter patient name"
                 onChangeText={(text) => handleInputChange("name", text)}
-              />
-
-              <Text style={styles.label}>Patient Account Email (For Sync)</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.email}
-                placeholder="patient@example.com (links to patient account)"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                onChangeText={(text) => handleInputChange("email", text)}
               />
 
               <View style={styles.rowContainer}>
@@ -297,24 +296,6 @@ const AddPatient: React.FC = () => {
                   </View>
                 </View>
               </View>
-
-              <Text style={styles.label}>Cause</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter cause (if known)"
-                value={formData.cause}
-                onChangeText={(text) => handleInputChange("cause", text)}
-              />
-
-              <Text style={styles.label}>Vertigo Description</Text>
-              <TextInput
-                style={styles.textArea}
-                placeholder="Brief description of vertigo symptoms"
-                multiline
-                numberOfLines={3}
-                value={formData.vertigo}
-                onChangeText={(text) => handleInputChange("vertigo", text)}
-              />
             </>
           )}
 
@@ -351,11 +332,52 @@ const AddPatient: React.FC = () => {
                   <Text style={styles.checkboxText}>{condition}</Text>
                 </View>
               ))}
+
+              <Text style={styles.label}>Other Comorbidities (if any)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Specify other condition"
+                value={formData.otherComorbidity}
+                onChangeText={(text) => handleInputChange("otherComorbidity", text)}
+              />
             </>
           )}
 
-          {/* Step 3: Vertigo Onset */}
+          {/* Step 3: True Vertigo Check */}
           {step === 3 && (
+            <>
+              <Text style={styles.sectionTitle}>Symptom Check</Text>
+              <Text style={styles.label}>
+                Is the patient experiencing true vertigo? (Spinning sensation or illusion of movement)
+              </Text>
+              <RadioButton.Group
+                onValueChange={(value) => handleRadioChange("isTrueVertigo", value)}
+                value={formData.isTrueVertigo}
+              >
+                <View style={styles.radioContainer}>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="Yes" color="#2D9F88" />
+                    <Text style={styles.radioText}>Yes</Text>
+                  </View>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="No" color="#2D9F88" />
+                    <Text style={styles.radioText}>No</Text>
+                  </View>
+                </View>
+              </RadioButton.Group>
+
+              {formData.isTrueVertigo === "No" && (
+                <View style={{ marginTop: Spacing.md, padding: Spacing.md, backgroundColor: "#FFF3CD", borderRadius: BorderRadius.md }}>
+                  <Text style={{ ...Typography.callout, color: "#856404" }}>
+                    Note: If the patient is experiencing lightheadedness, unsteadiness, or presyncope without the illusion of movement, this app's diagnostic trees may not be fully optimized for them in this version.
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Step 4: Vertigo Onset */}
+          {step === 4 && (
             <>
               <Text style={styles.sectionTitle}>Vertigo Characteristics</Text>
               <Text style={styles.label}>
@@ -379,8 +401,8 @@ const AddPatient: React.FC = () => {
             </>
           )}
 
-          {/* Step 4: Duration */}
-          {step === 4 && (
+          {/* Step 5: Duration */}
+          {step === 5 && (
             <>
               <Text style={styles.sectionTitle}>Duration of Vertigo</Text>
               <Text style={styles.label}>
@@ -409,8 +431,8 @@ const AddPatient: React.FC = () => {
             </>
           )}
 
-          {/* Step 5: Vertigo Sensation */}
-          {step === 5 && (
+          {/* Step 6: Vertigo Sensation */}
+          {step === 6 && (
             <>
               <Text style={styles.sectionTitle}>Type of Sensation</Text>
               <Text style={styles.label}>
@@ -437,8 +459,8 @@ const AddPatient: React.FC = () => {
             </>
           )}
 
-          {/* Step 6: Episodic or Persistent */}
-          {step === 6 && (
+          {/* Step 7: Episodic or Persistent */}
+          {step === 7 && (
             <>
               <Text style={styles.sectionTitle}>Pattern of Symptoms</Text>
               <Text style={styles.label}>
@@ -517,8 +539,35 @@ const AddPatient: React.FC = () => {
             </>
           )}
 
-          {/* Step 7: Triggers */}
-          {step === 7 && (
+          {/* Step 8: Vertigo Progression */}
+          {step === 8 && (
+            <>
+              <Text style={styles.sectionTitle}>Progression</Text>
+              <Text style={styles.label}>How has the vertigo been since its onset?</Text>
+              <RadioButton.Group
+                onValueChange={(value) => handleRadioChange("vertigoProgression", value)}
+                value={formData.vertigoProgression}
+              >
+                <View style={styles.radioContainer}>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="Worsening" color="#2D9F88" />
+                    <Text style={styles.radioText}>Worsening</Text>
+                  </View>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="Static" color="#2D9F88" />
+                    <Text style={styles.radioText}>Static</Text>
+                  </View>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="Improving" color="#2D9F88" />
+                    <Text style={styles.radioText}>Improving</Text>
+                  </View>
+                </View>
+              </RadioButton.Group>
+            </>
+          )}
+
+          {/* Step 9: Triggers */}
+          {step === 9 && (
             <>
               <Text style={styles.sectionTitle}>
                 Triggers and Aggravating Factors
@@ -535,6 +584,7 @@ const AddPatient: React.FC = () => {
                 "During ascend or descend in air travel",
                 "Visual stimuli",
                 "Anxiety or stress",
+                "Motion sensitivity",
               ].map((trigger) => (
                 <View key={trigger} style={styles.checkboxContainer}>
                   <Checkbox
@@ -601,8 +651,83 @@ const AddPatient: React.FC = () => {
             </>
           )}
 
-          {/* Step 8: Associated Symptoms */}
-          {step === 8 && (
+          {/* Step 10: Air Travel or Diving */}
+          {step === 10 && (
+            <>
+              <Text style={styles.sectionTitle}>Recent History</Text>
+              <Text style={styles.label}>
+                Did the vertigo occur during or immediately after air travel or diving?
+              </Text>
+              <RadioButton.Group
+                onValueChange={(value) => handleRadioChange("recentAirTravelOrDiving", value)}
+                value={formData.recentAirTravelOrDiving}
+              >
+                <View style={styles.radioContainer}>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="Yes" color="#2D9F88" />
+                    <Text style={styles.radioText}>Yes</Text>
+                  </View>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="No" color="#2D9F88" />
+                    <Text style={styles.radioText}>No</Text>
+                  </View>
+                </View>
+              </RadioButton.Group>
+            </>
+          )}
+
+          {/* Step 11: Surgery */}
+          {step === 11 && (
+            <>
+              <Text style={styles.sectionTitle}>Surgical History</Text>
+              <Text style={styles.label}>
+                Did the patient undergo any ear/mastoid surgery in the past?
+              </Text>
+              <RadioButton.Group
+                onValueChange={(value) => handleRadioChange("earMastoidSurgery", value)}
+                value={formData.earMastoidSurgery}
+              >
+                <View style={styles.radioContainer}>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="Yes" color="#2D9F88" />
+                    <Text style={styles.radioText}>Yes</Text>
+                  </View>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="No" color="#2D9F88" />
+                    <Text style={styles.radioText}>No</Text>
+                  </View>
+                </View>
+              </RadioButton.Group>
+            </>
+          )}
+
+          {/* Step 12: Previous Diagnosis */}
+          {step === 12 && (
+            <>
+              <Text style={styles.sectionTitle}>Medical History</Text>
+              <Text style={styles.label}>
+                Have you ever been diagnosed with a vertigo-related condition in the past?
+              </Text>
+              <RadioButton.Group
+                onValueChange={(value) => handleRadioChange("previousVertigoDiagnosis", value)}
+                value={formData.previousVertigoDiagnosis}
+              >
+                <View style={styles.radioContainer}>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="Yes" color="#2D9F88" />
+                    <Text style={styles.radioText}>Yes</Text>
+                  </View>
+                  <View style={styles.radioButton}>
+                    <RadioButton value="No" color="#2D9F88" />
+                    <Text style={styles.radioText}>No</Text>
+                  </View>
+                </View>
+              </RadioButton.Group>
+            </>
+          )}
+
+          {/* Step 13: Associated Symptoms */}
+          {step === 13 && (
             <>
               <Text style={styles.sectionTitle}>Associated Symptoms</Text>
               <Text style={styles.label}>
@@ -852,8 +977,8 @@ const AddPatient: React.FC = () => {
             </>
           )}
 
-          {/* Step 9: Drug History */}
-          {step === 9 && (
+          {/* Step 14: Medication History */}
+          {step === 14 && (
             <>
               <Text style={styles.sectionTitle}>Medication History</Text>
               <Text style={styles.label}>
@@ -933,18 +1058,8 @@ const AddPatient: React.FC = () => {
                   <Text style={styles.checkboxText}>{drug}</Text>
                 </View>
               ))}
-            </>
-          )}
 
-          {/* Step 10: Medications Taken for Vertigo */}
-          {step === 10 && (
-            <>
-              <Text style={styles.sectionTitle}>Treatment History</Text>
-              <Text style={styles.label}>
-                Has the patient taken any medications following onset of
-                vertigo?
-              </Text>
-
+              <Text style={[styles.categoryLabel, { marginTop: Spacing.lg }]}>Medications Taken for Vertigo:</Text>
               {[
                 "Benzodiazepines",
                 "Labyrinthine sedatives (Cinnarizine, Meclizine, Prochlorperazine, etc)",
@@ -966,6 +1081,50 @@ const AddPatient: React.FC = () => {
                   <Text style={styles.checkboxText}>{medication}</Text>
                 </View>
               ))}
+
+              <Text style={[styles.categoryLabel, { marginTop: Spacing.lg }]}>Other Medications</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="List any other medications"
+                value={formData.otherMedications}
+                onChangeText={(text) => handleInputChange("otherMedications", text)}
+              />
+            </>
+          )}
+
+          {/* Step 15: Treatment History */}
+          {step === 15 && (
+            <>
+              <Text style={styles.sectionTitle}>Treatment History</Text>
+              <Text style={styles.label}>
+                Has the patient tried any physical maneuvers (e.g., Epley maneuver) or Vestibular Rehabilitation Therapy (VRT)?
+              </Text>
+              <TextInput
+                style={styles.textArea}
+                placeholder="Describe previous treatments and outcomes"
+                multiline
+                numberOfLines={4}
+                value={formData.treatmentHistory}
+                onChangeText={(text) => handleInputChange("treatmentHistory", text)}
+              />
+            </>
+          )}
+
+          {/* Step 16: Additional Info */}
+          {step === 16 && (
+            <>
+              <Text style={styles.sectionTitle}>Final Step</Text>
+              <Text style={styles.label}>
+                Any other information you'd like to provide about the patient's condition?
+              </Text>
+              <TextInput
+                style={styles.textArea}
+                placeholder="Additional notes"
+                multiline
+                numberOfLines={4}
+                value={formData.additionalInfo}
+                onChangeText={(text) => handleInputChange("additionalInfo", text)}
+              />
             </>
           )}
         </View>
