@@ -42,7 +42,7 @@ export default function Disclaimer() {
       {/* Content Card */}
       <View style={styles.contentCard}>
         <Text style={styles.description}>
-          VertEase is designed to assist healthcare providers in storing and managing
+          VertiDx is designed to assist healthcare providers in storing and managing
           patient information related to vertigo and balance disorders.
         </Text>
 

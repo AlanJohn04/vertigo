@@ -1,188 +1,211 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import Button from "../components/shared/Button";
-import { useRouter } from "expo-router";
-import { Colors, Shadows, BorderRadius, Typography, Spacing } from "../constants/theme";
+import React, { useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+  Platform,
+  Alert,
+} from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Checkbox } from "react-native-paper";
+import LogoAnimation from "../components/LogoAnimation";
+import { Colors, BorderRadius, Spacing } from "../constants/theme";
 
 const LandingPage: React.FC = () => {
   const router = useRouter();
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  const handleGetStarted = () => {
-    router.push("/typeOfUser");
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem("termsAccepted").then((val) => {
+        if (val === "true") {
+          setAgreedToTerms(true);
+        }
+      });
+    }, [])
+  );
+
+  const handleToggleTerms = async () => {
+    const nextVal = !agreedToTerms;
+    setAgreedToTerms(nextVal);
+    await AsyncStorage.setItem("termsAccepted", nextVal ? "true" : "false");
+    if (nextVal) {
+      await AsyncStorage.setItem("disclaimerAccepted", "true");
+    }
+  };
+
+  const handleSignIn = () => {
+    if (!agreedToTerms) {
+      Alert.alert(
+        "Terms & Conditions",
+        "Please accept the Terms & Conditions before signing in.",
+        [
+          { text: "Read Terms", onPress: () => router.push("/(auth)/Terms") },
+          { text: "I Agree", onPress: handleToggleTerms },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+      return;
+    }
+    router.push("/(auth)/SignIn");
+  };
+
+  const handleSignUp = () => {
+    router.push("/(auth)/SignUp");
   };
 
   return (
-    <View style={styles.container}>
-      {/* Top Section */}
-      <View style={styles.topSection}>
-        <View style={styles.logoRow}>
-          <View style={styles.logoDot} />
-          <Text style={styles.logoName}>VertEase</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Main Content Area */}
+        <View style={styles.centerSection}>
+          {/* Animated Squircle Logo */}
+          <LogoAnimation size={190} rounded={true} />
+
+          {/* App Title & Tagline */}
+          <Text style={styles.title}>VertiDx</Text>
+          <Text style={styles.subtitle}>Decode the Vertigo</Text>
         </View>
-      </View>
 
-      {/* Hero Section */}
-      <View style={styles.heroSection}>
-        <View style={styles.heroImageContainer}>
-          <View style={styles.heroCircle}>
-            <Ionicons name="pulse" size={64} color={Colors.primary} />
-          </View>
-          {/* Decorative floating elements */}
-          <View style={[styles.floatingDot, { top: 20, left: 30, backgroundColor: Colors.primaryLight }]} />
-          <View style={[styles.floatingDot, { top: 60, right: 20, backgroundColor: Colors.accent, width: 14, height: 14 }]} />
-          <View style={[styles.floatingDot, { bottom: 30, left: 50, backgroundColor: Colors.warning, width: 10, height: 10 }]} />
-        </View>
-      </View>
-
-      {/* Content Section */}
-      <View style={styles.contentSection}>
-        <Text style={styles.title}>
-          Balance & Vertigo{"\n"}
-          <Text style={styles.titleAccent}>Management</Text>
-        </Text>
-        <Text style={styles.subtitle}>
-          Empowering patients and practitioners with intelligent vertigo tracking,
-          exercises, and AI-powered insights.
-        </Text>
-
-        {/* Feature Pills */}
-        <View style={styles.pillRow}>
-          {[
-            { icon: "shield-checkmark", label: "Secure" },
-            { icon: "analytics", label: "Smart" },
-            { icon: "people", label: "Connected" },
-          ].map((item, i) => (
-            <View key={i} style={styles.pill}>
-              <Ionicons name={item.icon as any} size={14} color={Colors.primary} />
-              <Text style={styles.pillText}>{item.label}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Button */}
-      <View style={styles.bottomSection}>
-        <Button
-          text="Get Started"
-          onPress={handleGetStarted}
-          icon={<Ionicons name="arrow-forward" size={18} color={Colors.white} />}
-        />
-        <Text style={styles.loginHint}>
-          Already have an account?{" "}
-          <Text
-            style={styles.loginLink}
-            onPress={() => router.push("/(auth)/SignIn")}
+        {/* Bottom Actions Section matching mockup order */}
+        <View style={styles.bottomSection}>
+          {/* Sign In Button */}
+          <TouchableOpacity
+            style={styles.signInBtn}
+            onPress={handleSignIn}
+            activeOpacity={0.85}
           >
-            Sign In
-          </Text>
-        </Text>
+            <Text style={styles.signInBtnText}>Sign in</Text>
+          </TouchableOpacity>
+
+          {/* Not a member yet, Please sign up */}
+          <TouchableOpacity
+            onPress={handleSignUp}
+            activeOpacity={0.7}
+            style={styles.signUpLinkWrap}
+          >
+            <Text style={styles.memberText}>
+              Not a member yet, Please{" "}
+              <Text style={styles.signUpHighlight}>sign up</Text>
+            </Text>
+          </TouchableOpacity>
+
+          {/* Terms & Conditions Checkbox */}
+          <View style={styles.checkboxContainer}>
+            <Checkbox
+              status={agreedToTerms ? "checked" : "unchecked"}
+              onPress={handleToggleTerms}
+              color="#15803d"
+            />
+            <Text style={styles.termsLabel}>
+              Please accept the{" "}
+              <Text
+                style={styles.termsHighlight}
+                onPress={() => router.push("/(auth)/Terms")}
+              >
+                terms and conditions
+              </Text>
+            </Text>
+          </View>
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: Colors.background,
+    paddingTop: Platform.OS === "android" ? 40 : 0,
   },
-  topSection: {
-    paddingTop: 60,
-    paddingHorizontal: Spacing.xxl,
-  },
-  logoRow: {
-    flexDirection: "row",
+  container: {
+    flex: 1,
+    justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: Spacing.xxl,
+    paddingTop: 60,
+    paddingBottom: 40,
+    backgroundColor: Colors.background,
   },
-  logoDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colors.primary,
-    marginRight: 8,
-  },
-  logoName: {
-    ...Typography.headline,
-    color: Colors.primary,
-    letterSpacing: 1,
-  },
-  heroSection: {
+  centerSection: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-  },
-  heroImageContainer: {
-    width: 200,
-    height: 200,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: "#ECFDF5",
-    alignItems: "center",
-    justifyContent: "center",
-    ...Shadows.glow(Colors.primary),
-  },
-  floatingDot: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    opacity: 0.6,
-  },
-  contentSection: {
-    paddingHorizontal: Spacing.xxl,
-    paddingBottom: Spacing.xxl,
+    marginTop: -20,
   },
   title: {
-    ...Typography.largeTitle,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.md,
-  },
-  titleAccent: {
-    color: Colors.primary,
+    fontSize: 38,
+    fontWeight: "800",
+    color: "#166534", // Signature green
+    letterSpacing: 0.5,
+    marginTop: 28,
   },
   subtitle: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    lineHeight: 24,
-    marginBottom: Spacing.xl,
-  },
-  pillRow: {
-    flexDirection: "row",
-  },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ECFDF5",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.pill,
-    marginRight: 10,
-  },
-  pillText: {
-    ...Typography.caption,
-    color: Colors.primaryDark,
-    marginLeft: 4,
+    fontSize: 20,
     fontWeight: "600",
+    color: "#1F2937", // Slate dark
+    marginTop: 10,
+    letterSpacing: 0.2,
   },
   bottomSection: {
-    paddingHorizontal: Spacing.xxl,
-    paddingBottom: 50,
+    width: "100%",
+    maxWidth: 360,
     alignItems: "center",
   },
-  loginHint: {
-    ...Typography.callout,
-    color: Colors.textMuted,
-    marginTop: Spacing.lg,
+  signInBtn: {
+    width: "100%",
+    backgroundColor: "#15803d", // Vibrant green pill
+    paddingVertical: 16,
+    borderRadius: BorderRadius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#15803d",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 16,
   },
-  loginLink: {
-    color: Colors.primary,
-    fontWeight: "600",
+  signInBtnText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.white,
+    letterSpacing: 0.3,
+  },
+  signUpLinkWrap: {
+    paddingVertical: 6,
+    marginBottom: 16,
+  },
+  memberText: {
+    fontSize: 15,
+    color: "#1F2937",
+    textAlign: "center",
+  },
+  signUpHighlight: {
+    color: "#15803d",
+    fontWeight: "700",
+    fontStyle: "italic",
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  termsLabel: {
+    fontSize: 14,
+    color: "#1F2937",
+    marginLeft: 6,
+  },
+  termsHighlight: {
+    color: "#15803d",
+    fontWeight: "700",
+    fontStyle: "italic",
+    textDecorationLine: "underline",
   },
 });
 

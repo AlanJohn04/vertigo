@@ -56,10 +56,8 @@ export default function Index() {
       return <Redirect href="/(patient)/PatientHome" />;
     }
     return <Redirect href="/(tabs)/Home" />;
-  } else if (disclaimerAccepted) {
-    return <Redirect href="/landing" />;
   } else {
-    return <Redirect href="/disclaimer" />;
+    return <Redirect href="/landing" />;
   }
 }
 

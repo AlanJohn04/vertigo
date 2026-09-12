@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet, Text, View, TextInput, Pressable, Image,
   TouchableOpacity, Alert, StatusBar, ActivityIndicator,
   ScrollView, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Checkbox } from "react-native-paper";
 import Button from "../../components/shared/Button";
 import { useAuth, UserRole } from "../../api/AuthContext";
 import { uploadImageToFirebase } from "../../utils/imageUpload";
@@ -27,6 +29,26 @@ export default function SignUp() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem("termsAccepted").then((val) => {
+        if (val === "true") {
+          setAgreedToTerms(true);
+        }
+      });
+    }, [])
+  );
+
+  const handleToggleTerms = async () => {
+    const nextVal = !agreedToTerms;
+    setAgreedToTerms(nextVal);
+    await AsyncStorage.setItem("termsAccepted", nextVal ? "true" : "false");
+    if (nextVal) {
+      await AsyncStorage.setItem("disclaimerAccepted", "true");
+    }
+  };
 
   const { signUp, updateUserProfile } = useAuth();
 
@@ -38,6 +60,7 @@ export default function SignUp() {
     if (!password) { setError("Please enter a password"); return false; }
     if (password.length < 6) { setError("Password must be at least 6 characters"); return false; }
     if (password !== confirmPassword) { setError("Passwords do not match"); return false; }
+    if (!agreedToTerms) { setError("Please accept the terms and conditions"); return false; }
     setError("");
     return true;
   };
@@ -200,12 +223,23 @@ export default function SignUp() {
           )}
         </View>
 
-        {/* Footer */}
-        <Pressable onPress={() => router.push("/(auth)/SignIn")} disabled={isLoading}>
-          <Text style={styles.footerText}>
-            Already have an account? <Text style={styles.footerLink}>Sign In</Text>
+        {/* Terms Checkbox */}
+        <View style={styles.checkboxContainer}>
+          <Checkbox
+            status={agreedToTerms ? "checked" : "unchecked"}
+            onPress={handleToggleTerms}
+            color="#15803d"
+          />
+          <Text style={styles.termsText}>
+            Please accept the{" "}
+            <Text
+              style={styles.termsLink}
+              onPress={() => router.push("/(auth)/Terms")}
+            >
+              terms and conditions
+            </Text>
           </Text>
-        </Pressable>
+        </View>
 
         {/* CTA */}
         {isLoading ? (
@@ -218,6 +252,13 @@ export default function SignUp() {
             <Button text="Submit information" onPress={handleSignUp} disabled={isLoading} />
           </View>
         )}
+
+        {/* Footer */}
+        <Pressable onPress={() => router.push("/(auth)/SignIn")} disabled={isLoading} style={{ marginTop: 8, marginBottom: 30, alignItems: "center" }}>
+          <Text style={styles.footerText}>
+            Already have an account? <Text style={styles.footerLink}>Sign In</Text>
+          </Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -295,5 +336,23 @@ const styles = StyleSheet.create({
   },
   radioWrapper: {
     paddingHorizontal: 5,
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.xs,
+  },
+  termsText: {
+    ...Typography.callout,
+    color: "#1F2937",
+    marginLeft: Spacing.sm,
+  },
+  termsLink: {
+    color: "#15803d",
+    fontWeight: "700",
+    fontStyle: "italic",
+    textDecorationLine: "underline",
   },
 });

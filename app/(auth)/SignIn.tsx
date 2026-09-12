@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,7 +13,7 @@ import {
   ToastAndroid,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import Button from "../../components/shared/Button";
 import { useAuth } from "../../api/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,6 +29,25 @@ export default function SignIn() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem("termsAccepted").then((val) => {
+        if (val === "true") {
+          setAgreedToTerms(true);
+        }
+      });
+    }, [])
+  );
+
+  const handleToggleTerms = async () => {
+    const nextVal = !agreedToTerms;
+    setAgreedToTerms(nextVal);
+    await AsyncStorage.setItem("termsAccepted", nextVal ? "true" : "false");
+    if (nextVal) {
+      await AsyncStorage.setItem("disclaimerAccepted", "true");
+    }
+  };
 
   const { signIn } = useAuth();
 
@@ -156,24 +175,34 @@ export default function SignIn() {
           </View>
         )}
 
-        {/* Terms Checkbox */}
-        <View style={styles.checkboxContainer}>
-          <Checkbox
-            status={agreedToTerms ? 'checked' : 'unchecked'}
-            onPress={() => setAgreedToTerms(!agreedToTerms)}
-            color={Colors.primary}
-          />
-          <Text style={styles.termsText}>
-            Please accept the <Text style={styles.termsLink} onPress={() => router.push("/(auth)/Terms")}>terms and conditions</Text>
-          </Text>
-        </View>
-
-        {/* Footer */}
-        <Pressable onPress={() => router.push("/(auth)/SignUp")} disabled={isLoading}>
+        {/* Footer Link: Not a member yet, Please sign up */}
+        <Pressable
+          onPress={() => router.push("/(auth)/SignUp")}
+          disabled={isLoading}
+          style={{ paddingVertical: 6, marginBottom: 14, alignItems: "center" }}
+        >
           <Text style={styles.footerText}>
             Not a member yet, Please <Text style={styles.footerLink}>sign up</Text>
           </Text>
         </Pressable>
+
+        {/* Terms Checkbox */}
+        <View style={styles.checkboxContainer}>
+          <Checkbox
+            status={agreedToTerms ? "checked" : "unchecked"}
+            onPress={handleToggleTerms}
+            color="#15803d"
+          />
+          <Text style={styles.termsText}>
+            Please accept the{" "}
+            <Text
+              style={styles.termsLink}
+              onPress={() => router.push("/(auth)/Terms")}
+            >
+              terms and conditions
+            </Text>
+          </Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -291,8 +320,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   footerLink: {
-    color: Colors.primary,
+    color: "#15803d",
     fontWeight: "700",
+    fontStyle: "italic",
   },
   checkboxContainer: {
     flexDirection: "row",
@@ -302,12 +332,13 @@ const styles = StyleSheet.create({
   },
   termsText: {
     ...Typography.callout,
-    color: Colors.textPrimary,
+    color: "#1F2937",
     marginLeft: Spacing.sm,
   },
   termsLink: {
-    color: Colors.primary,
-    fontWeight: "600",
+    color: "#15803d",
+    fontWeight: "700",
+    fontStyle: "italic",
     textDecorationLine: "underline",
   },
 });

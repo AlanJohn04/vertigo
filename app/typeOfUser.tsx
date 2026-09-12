@@ -35,7 +35,7 @@ const TypeOfUser = () => {
         </View>
         <Text style={styles.title}>Who are you?</Text>
         <Text style={styles.subtitle}>
-          Select your account role to register, sign in, or explore the VertEase panel.
+          Select your account role to register, sign in, or explore the VertiDx panel.
         </Text>
       </View>
 
