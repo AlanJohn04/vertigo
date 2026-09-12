@@ -392,8 +392,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (error: any) {
       console.warn("SignOut notice:", error?.message || error);
     } finally {
-      await AsyncStorage.removeItem("userRole");
-      await AsyncStorage.removeItem("userId");
+      await AsyncStorage.multiRemove(["userRole", "userId", "practitionerId", "patients"]);
       setUser(null);
       setLoading(false);
     }

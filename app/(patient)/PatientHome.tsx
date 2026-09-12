@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../api/AuthContext";
 import { StatusBar } from "expo-status-bar";
@@ -49,13 +49,24 @@ export default function PatientHome() {
     }
   };
 
-  const handleLogout = async () => {
+  const performLogout = async () => {
     try { 
       await logout(); 
     } catch (error) { 
       console.error("Logout error:", error); 
     } finally {
-      router.replace("/typeOfUser");
+      router.replace("/(auth)/SignIn");
+    }
+  };
+
+  const handleLogout = () => {
+    if (Platform.OS === "web") {
+      performLogout();
+    } else {
+      Alert.alert("Log Out", "Are you sure you want to log out?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Log Out", style: "destructive", onPress: performLogout },
+      ]);
     }
   };
 
@@ -89,12 +100,23 @@ export default function PatientHome() {
             <Text style={styles.greeting}>Good morning,</Text>
             <Text style={styles.userName}>{user?.displayName?.split(" ")[0] || "Patient"}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.profileBtn}
-            onPress={() => router.push("/(patient)/profile" as any)}
-          >
-            <Ionicons name="person" size={20} color={Colors.primary} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.profileBtn}
+              onPress={() => router.push("/(patient)/profile" as any)}
+              accessibilityLabel="Profile"
+            >
+              <Ionicons name="person" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.logoutBtn}
+              onPress={handleLogout}
+              accessibilityLabel="Log out"
+              testID="patient-logout-button"
+            >
+              <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Condition Badge */}
@@ -205,6 +227,21 @@ const styles = StyleSheet.create({
   },
   greeting: { ...Typography.callout, color: Colors.textMuted },
   userName: { ...Typography.title1, color: Colors.textPrimary },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  logoutBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#FEF2F2",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FEE2E2",
+  },
   profileBtn: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center",

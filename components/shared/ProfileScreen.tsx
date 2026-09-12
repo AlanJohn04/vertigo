@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../api/AuthContext";
@@ -42,25 +43,31 @@ const ProfileScreen: React.FC = () => {
     fetchUserData();
   }, [user]);
 
-  const handleLogout = async () => {
-    Alert.alert("Log Out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Log Out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setIsLoading(true);
-            await logout();
-          } catch (error) {
-            console.error("Logout error:", error);
-          } finally {
-            setIsLoading(false);
-            router.replace("/typeOfUser");
-          }
+  const performLogout = async () => {
+    try {
+      setIsLoading(true);
+      await logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      setIsLoading(false);
+      router.replace("/(auth)/SignIn");
+    }
+  };
+
+  const handleLogout = () => {
+    if (Platform.OS === "web") {
+      performLogout();
+    } else {
+      Alert.alert("Log Out", "Are you sure you want to log out?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Log Out",
+          style: "destructive",
+          onPress: performLogout,
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   const handleResetPassword = () => {
@@ -196,7 +203,12 @@ const ProfileScreen: React.FC = () => {
 
           <View style={styles.actionDivider} />
 
-          <TouchableOpacity style={styles.actionRow} onPress={handleLogout}>
+          <TouchableOpacity
+            style={styles.actionRow}
+            onPress={handleLogout}
+            accessibilityLabel="Log Out"
+            testID="profile-logout-button"
+          >
             <View style={[styles.actionIcon, { backgroundColor: "#FEF2F2" }]}>
               <Ionicons name="log-out-outline" size={18} color={Colors.danger} />
             </View>

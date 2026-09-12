@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import {
   StyleSheet, Text, View, ScrollView, Image, TouchableOpacity,
-  TextInput, AppState, Alert,
+  TextInput, AppState, Alert, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Button from "../../components/shared/Button";
@@ -98,7 +98,7 @@ const PatientHomeSection = () => {
 // ── Main HomePage ──
 const HomePage: React.FC = () => {
   const router = useRouter();
-  const { user, updateUserProfile } = useAuth();
+  const { user, logout, updateUserProfile } = useAuth();
   const [search, setSearch] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -208,6 +208,29 @@ const HomePage: React.FC = () => {
 
   const isPractitioner = user?.role === "practitioner";
 
+  const performLogout = async () => {
+    try {
+      setIsLoading(true);
+      await logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      setIsLoading(false);
+      router.replace("/(auth)/SignIn");
+    }
+  };
+
+  const handleLogout = () => {
+    if (Platform.OS === "web") {
+      performLogout();
+    } else {
+      Alert.alert("Log Out", "Are you sure you want to log out?", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Log Out", style: "destructive", onPress: performLogout },
+      ]);
+    }
+  };
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Header */}
@@ -217,13 +240,23 @@ const HomePage: React.FC = () => {
             <Text style={styles.greeting}>Good morning,</Text>
             <Text style={styles.userName}>{user?.displayName?.split(" ")[0] || "User"}</Text>
           </View>
-          <TouchableOpacity onPress={pickImage} style={styles.profileBtn}>
-            {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.profileImg} />
-            ) : (
-              <Ionicons name="person" size={22} color={Colors.primary} />
-            )}
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={pickImage} style={styles.profileBtn} accessibilityLabel="Profile picture">
+              {profileImage ? (
+                <Image source={{ uri: profileImage }} style={styles.profileImg} />
+              ) : (
+                <Ionicons name="person" size={22} color={Colors.primary} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleLogout}
+              style={styles.logoutBtn}
+              accessibilityLabel="Log out"
+              testID="logout-button"
+            >
+              <Ionicons name="log-out-outline" size={22} color={Colors.danger} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search */}
@@ -302,6 +335,21 @@ const styles = StyleSheet.create({
   },
   greeting: { ...Typography.callout, color: Colors.textMuted },
   userName: { ...Typography.title1, color: Colors.textPrimary },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  logoutBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FEF2F2",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#FEE2E2",
+  },
   profileBtn: {
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center",
