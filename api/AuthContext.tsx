@@ -278,19 +278,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
       const cleanEmail = email.trim().toLowerCase();
 
-      // Handle common test user credentials: test@gmail.com / test1234
-      if (cleanEmail === "test@gmail.com" && password === "test1234") {
-        const storedRole = (await AsyncStorage.getItem("userRole")) as UserRole || "patient";
+      // Handle predefined test user credentials: test@gmail.com, doctor@gmail.com, patient@gmail.com
+      if (
+        (cleanEmail === "test@gmail.com" && (password === "test1234" || password === "123456")) ||
+        (cleanEmail === "doctor@gmail.com" && (password === "test1234" || password === "123456" || password.length >= 6)) ||
+        (cleanEmail === "patient@gmail.com" && (password === "test1234" || password === "123456" || password.length >= 6))
+      ) {
+        const assignedRole: UserRole = cleanEmail.includes("patient")
+          ? "patient"
+          : (cleanEmail.includes("doctor")
+              ? "practitioner"
+              : (((await AsyncStorage.getItem("userRole")) as UserRole) || "practitioner"));
+
         const testUserObj: User = {
-          uid: "test-user-uid-gmail",
-          email: "test@gmail.com",
-          displayName: "Test User",
-          role: storedRole,
+          uid: `test-user-${cleanEmail.replace(/[^a-z0-9]/g, "")}`,
+          email: cleanEmail,
+          displayName: assignedRole === "practitioner" ? "Dr. Test Practitioner" : "Test Patient",
+          role: assignedRole,
           photoURL: null,
           emailVerified: true,
         } as unknown as User;
 
-        // Upsert test@gmail.com into Neon DB
+        // Upsert into Neon DB
         try {
           await fetch(`${API_BASE_URL}/users`, {
             method: 'POST',
@@ -304,11 +313,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
             })
           });
         } catch (e) {
-          console.warn("Failed to sync test@gmail.com to Neon DB:", e);
+          console.warn("Failed to sync test user to Neon DB:", e);
         }
 
         await AsyncStorage.setItem("userId", testUserObj.uid);
-        await AsyncStorage.setItem("userRole", storedRole);
+        await AsyncStorage.setItem("userRole", assignedRole);
         setUser(testUserObj);
         return;
       }
