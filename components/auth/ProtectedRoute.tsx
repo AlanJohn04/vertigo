@@ -25,6 +25,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       segments[0] === "landing" ||
       segments[0] === "disclaimer" ||
       segments[0] === "typeOfUser" ||
+      segments[0] === "login" ||
+      segments[0] === "Terms" ||
       !segments[0];
 
     if (!user) {
