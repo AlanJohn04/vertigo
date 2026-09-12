@@ -8,17 +8,18 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   TouchableOpacity,
   ToastAndroid,
+  Modal,
+  SafeAreaView,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
-import Button from "../../components/shared/Button";
 import { useAuth } from "../../api/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Checkbox } from "react-native-paper";
-import { Colors, Shadows, BorderRadius, Typography, Spacing } from "../../constants/theme";
+import { Colors, BorderRadius, Spacing } from "../../constants/theme";
 import LogoAnimation from "../../components/LogoAnimation";
 
 export default function SignIn() {
@@ -29,6 +30,7 @@ export default function SignIn() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,31 +53,52 @@ export default function SignIn() {
 
   const { signIn } = useAuth();
 
-  const validateForm = () => {
-    if (!email.trim()) { setError("Please enter your email address"); return false; }
-    if (!password) { setError("Please enter your password"); return false; }
-    if (!agreedToTerms) { setError("Please accept the terms and conditions"); return false; }
-    setError("");
-    return true;
+  const handlePressSignIn = () => {
+    if (!agreedToTerms) {
+      Alert.alert(
+        "Terms & Conditions",
+        "Please accept the Terms & Conditions before signing in.",
+        [
+          { text: "Read Terms", onPress: () => router.push("/(auth)/Terms") },
+          {
+            text: "I Agree",
+            onPress: async () => {
+              await handleToggleTerms();
+              setShowAuthModal(true);
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+      return;
+    }
+    setShowAuthModal(true);
   };
 
-  const handleSignIn = async () => {
-    if (!validateForm()) return;
+  const handlePerformSignIn = async () => {
+    if (!email.trim()) {
+      setError("Please enter your email address");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password");
+      return;
+    }
+    setError("");
     setIsLoading(true);
     try {
       await signIn(email, password);
-      console.log("Sign in successful");
       const storedRole = await AsyncStorage.getItem("userRole");
+      setShowAuthModal(false);
       if (storedRole === "patient") {
         router.replace("/(patient)/PatientHome");
       } else {
         router.replace("/(tabs)/Home");
       }
-    } catch (error: any) {
-      setError(error.message);
-      const errorMessage = error.message || "An error occurred. Please try again.";
+    } catch (err: any) {
+      setError(err.message || "Failed to sign in. Please try again.");
       if (Platform.OS === "android") {
-        ToastAndroid.show(errorMessage, ToastAndroid.LONG);
+        ToastAndroid.show(err.message || "Sign in failed", ToastAndroid.LONG);
       }
     } finally {
       setIsLoading(false);
@@ -83,169 +106,306 @@ export default function SignIn() {
   };
 
   const handleForgotPassword = () => {
+    setShowAuthModal(false);
     router.push("/(auth)/ResetPassword");
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={{ flex: 1 }}
-    >
-      <ScrollView
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Back */}
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={22} color={Colors.textPrimary} />
-        </TouchableOpacity>
-
-        {/* Header */}
-        <View style={styles.header}>
-          <LogoAnimation size={120} />
-          <Text style={[styles.title, { marginTop: 20, color: "#166534" }]}>VertiDx</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Center: Animated Squircle Logo + VertiDx + Tagline */}
+        <View style={styles.centerSection}>
+          <LogoAnimation size={190} rounded={true} />
+          <Text style={styles.title}>VertiDx</Text>
           <Text style={styles.subtitle}>Decode the Vertigo</Text>
         </View>
 
-        {/* Error */}
-        {error ? (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color={Colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
+        {/* Bottom: Sign In Button, Sign Up link, Terms & Conditions checkbox */}
+        <View style={styles.bottomSection}>
+          {/* Green Sign In Button */}
+          <TouchableOpacity
+            style={styles.signInBtn}
+            onPress={handlePressSignIn}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.signInBtnText}>Sign in</Text>
+          </TouchableOpacity>
 
-        {/* Form */}
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.inputWrap}>
-              <Ionicons name="mail-outline" size={18} color={Colors.textMuted} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="your@email.com"
-                placeholderTextColor={Colors.textMuted}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!isLoading}
-              />
-            </View>
-          </View>
+          {/* Not a member yet, Please sign up */}
+          <TouchableOpacity
+            onPress={() => router.push("/(auth)/SignUp")}
+            activeOpacity={0.7}
+            style={styles.signUpLinkWrap}
+          >
+            <Text style={styles.memberText}>
+              Not a member yet, Please{" "}
+              <Text style={styles.signUpHighlight}>sign up</Text>
+            </Text>
+          </TouchableOpacity>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputWrap}>
-              <Ionicons name="key-outline" size={18} color={Colors.textMuted} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor={Colors.textMuted}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                editable={!isLoading}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={20}
-                  color={Colors.textMuted}
-                />
+          {/* Terms and conditions Checkbox */}
+          <View style={styles.checkboxContainer}>
+            <Checkbox
+              status={agreedToTerms ? "checked" : "unchecked"}
+              onPress={handleToggleTerms}
+              color="#15803d"
+            />
+            <Text style={styles.termsLabel}>
+              Please accept the{" "}
+              <Text
+                style={styles.termsHighlight}
+                onPress={() => router.push("/(auth)/Terms")}
+              >
+                terms and conditions
+              </Text>
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Credential Entry Modal */}
+      <Modal
+        visible={showAuthModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAuthModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalCard}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Sign In</Text>
+                <Text style={styles.modalSubtitle}>Enter your VertiDx account details</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setError("");
+                  setShowAuthModal(false);
+                }}
+                style={styles.closeBtn}
+              >
+                <Ionicons name="close" size={24} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
-          </View>
 
-          <TouchableOpacity onPress={handleForgotPassword} disabled={isLoading} style={styles.forgotWrap}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </TouchableOpacity>
-        </View>
+            {/* Error Message */}
+            {error ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
 
-        {/* CTA */}
-        {isLoading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Signing in...</Text>
-          </View>
-        ) : (
-          <View style={styles.buttonWrap}>
-            <Button text="Sign In" onPress={handleSignIn} disabled={isLoading} />
-          </View>
-        )}
+            {/* Email Field */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Email</Text>
+              <View style={styles.inputWrap}>
+                <Ionicons
+                  name="mail-outline"
+                  size={18}
+                  color={Colors.textMuted}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="your@email.com"
+                  placeholderTextColor={Colors.textMuted}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                />
+              </View>
+            </View>
 
-        {/* Footer Link: Not a member yet, Please sign up */}
-        <Pressable
-          onPress={() => router.push("/(auth)/SignUp")}
-          disabled={isLoading}
-          style={{ paddingVertical: 6, marginBottom: 14, alignItems: "center" }}
-        >
-          <Text style={styles.footerText}>
-            Not a member yet, Please <Text style={styles.footerLink}>sign up</Text>
-          </Text>
-        </Pressable>
+            {/* Password Field */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.inputWrap}>
+                <Ionicons
+                  name="key-outline"
+                  size={18}
+                  color={Colors.textMuted}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your password"
+                  placeholderTextColor={Colors.textMuted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  editable={!isLoading}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={20}
+                    color={Colors.textMuted}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-        {/* Terms Checkbox */}
-        <View style={styles.checkboxContainer}>
-          <Checkbox
-            status={agreedToTerms ? "checked" : "unchecked"}
-            onPress={handleToggleTerms}
-            color="#15803d"
-          />
-          <Text style={styles.termsText}>
-            Please accept the{" "}
-            <Text
-              style={styles.termsLink}
-              onPress={() => router.push("/(auth)/Terms")}
+            {/* Forgot Password */}
+            <TouchableOpacity
+              onPress={handleForgotPassword}
+              disabled={isLoading}
+              style={styles.forgotWrap}
             >
-              terms and conditions
-            </Text>
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+              <Text style={styles.forgotText}>Forgot Password?</Text>
+            </TouchableOpacity>
+
+            {/* Action Buttons */}
+            {isLoading ? (
+              <View style={styles.loadingWrap}>
+                <ActivityIndicator size="large" color="#15803d" />
+                <Text style={styles.loadingText}>Signing in...</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.submitSignInBtn}
+                onPress={handlePerformSignIn}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.submitSignInBtnText}>Sign In</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    paddingTop: Platform.OS === "android" ? 40 : 0,
+  },
   container: {
-    flexGrow: 1,
-    padding: Spacing.xxl,
-    paddingTop: 50,
+    flex: 1,
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: Spacing.xxl,
+    paddingTop: 60,
+    paddingBottom: 40,
     backgroundColor: Colors.background,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.white,
+  centerSection: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    ...Shadows.sm,
-    marginBottom: Spacing.xl,
-  },
-  header: {
-    alignItems: "center",
-    marginBottom: Spacing.xxxl,
-  },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#ECFDF5",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing.lg,
+    marginTop: -20,
   },
   title: {
-    ...Typography.title1,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
+    fontSize: 38,
+    fontWeight: "800",
+    color: "#166534",
+    letterSpacing: 0.5,
+    marginTop: 28,
   },
   subtitle: {
-    ...Typography.body,
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginTop: 10,
+    letterSpacing: 0.2,
+  },
+  bottomSection: {
+    width: "100%",
+    maxWidth: 360,
+    alignItems: "center",
+  },
+  signInBtn: {
+    width: "100%",
+    backgroundColor: "#15803d",
+    paddingVertical: 16,
+    borderRadius: BorderRadius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#15803d",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 16,
+  },
+  signInBtnText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.white,
+    letterSpacing: 0.3,
+  },
+  signUpLinkWrap: {
+    paddingVertical: 6,
+    marginBottom: 16,
+  },
+  memberText: {
+    fontSize: 15,
+    color: "#1F2937",
+    textAlign: "center",
+  },
+  signUpHighlight: {
+    color: "#15803d",
+    fontWeight: "700",
+    fontStyle: "italic",
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  termsLabel: {
+    fontSize: 14,
+    color: "#1F2937",
+    marginLeft: 6,
+  },
+  termsHighlight: {
+    color: "#15803d",
+    fontWeight: "700",
+    fontStyle: "italic",
+    textDecorationLine: "underline",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: Spacing.xxl,
+    paddingBottom: 45,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xl,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#166534",
+  },
+  modalSubtitle: {
+    fontSize: 14,
     color: Colors.textMuted,
+    marginTop: 4,
+  },
+  closeBtn: {
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
   },
   errorBox: {
     flexDirection: "row",
@@ -253,24 +413,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF2F2",
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
     borderWidth: 1,
     borderColor: "#FECACA",
   },
   errorText: {
-    ...Typography.callout,
+    fontSize: 14,
     color: Colors.danger,
     marginLeft: Spacing.sm,
     flex: 1,
-  },
-  form: {
-    marginBottom: Spacing.xxl,
   },
   inputGroup: {
     marginBottom: Spacing.lg,
   },
   label: {
-    ...Typography.callout,
+    fontSize: 14,
+    fontWeight: "600",
     color: Colors.textSecondary,
     marginBottom: 6,
     marginLeft: 4,
@@ -278,8 +436,8 @@ const styles = StyleSheet.create({
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surfaceElevated,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1.5,
     borderColor: Colors.border,
     paddingHorizontal: Spacing.lg,
@@ -295,50 +453,39 @@ const styles = StyleSheet.create({
   },
   forgotWrap: {
     alignSelf: "flex-end",
-    marginTop: Spacing.xs,
+    marginBottom: Spacing.xl,
   },
   forgotText: {
-    ...Typography.callout,
-    color: Colors.primary,
+    fontSize: 14,
     fontWeight: "600",
+    color: "#15803d",
+  },
+  submitSignInBtn: {
+    width: "100%",
+    backgroundColor: "#15803d",
+    paddingVertical: 16,
+    borderRadius: BorderRadius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#15803d",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitSignInBtnText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: Colors.white,
+    letterSpacing: 0.3,
   },
   loadingWrap: {
     alignItems: "center",
-    marginVertical: Spacing.xxl,
+    paddingVertical: Spacing.lg,
   },
   loadingText: {
-    ...Typography.callout,
+    fontSize: 14,
     color: Colors.textMuted,
     marginTop: Spacing.sm,
-  },
-  buttonWrap: {
-    marginBottom: Spacing.xxl,
-  },
-  footerText: {
-    ...Typography.callout,
-    color: Colors.textMuted,
-    textAlign: "center",
-  },
-  footerLink: {
-    color: "#15803d",
-    fontWeight: "700",
-    fontStyle: "italic",
-  },
-  checkboxContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.xl,
-    paddingHorizontal: Spacing.xs,
-  },
-  termsText: {
-    ...Typography.callout,
-    color: "#1F2937",
-    marginLeft: Spacing.sm,
-  },
-  termsLink: {
-    color: "#15803d",
-    fontWeight: "700",
-    fontStyle: "italic",
-    textDecorationLine: "underline",
   },
 });
