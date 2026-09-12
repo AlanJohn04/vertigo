@@ -22,7 +22,11 @@ export default function RootLayout() {
           <Stack.Screen name="landing" />
           <Stack.Screen name="typeOfUser" />
           <Stack.Screen name="login" />
+          <Stack.Screen name="SignIn" />
+          <Stack.Screen name="SignUp" />
+          <Stack.Screen name="signup" />
           <Stack.Screen name="Terms" />
+          <Stack.Screen name="terms" />
 
           {/* Auth screens */}
           <Stack.Screen name="(auth)/SignIn" />

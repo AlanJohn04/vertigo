@@ -114,7 +114,13 @@ export default function SignUp() {
       <StatusBar translucent={false} backgroundColor={Colors.background} barStyle="dark-content" />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Back */}
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/login");
+          }}
+        >
           <Ionicons name="chevron-back" size={22} color={Colors.textPrimary} />
         </TouchableOpacity>
 
@@ -230,15 +236,18 @@ export default function SignUp() {
             onPress={handleToggleTerms}
             color="#15803d"
           />
-          <Text style={styles.termsText}>
-            Please accept the{" "}
-            <Text
-              style={styles.termsLink}
-              onPress={() => router.push("/(auth)/Terms")}
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", flex: 1, marginLeft: 8 }}>
+            <TouchableOpacity onPress={handleToggleTerms} activeOpacity={0.7}>
+              <Text style={styles.termsText}>Please accept the </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push("/Terms")}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
             >
-              terms and conditions
-            </Text>
-          </Text>
+              <Text style={styles.termsLink}>terms and conditions</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* CTA */}
@@ -254,7 +263,11 @@ export default function SignUp() {
         )}
 
         {/* Footer */}
-        <Pressable onPress={() => router.push("/(auth)/SignIn")} disabled={isLoading} style={{ marginTop: 8, marginBottom: 30, alignItems: "center" }}>
+        <Pressable
+          onPress={() => router.push("/login")}
+          disabled={isLoading}
+          style={{ marginTop: 8, marginBottom: 30, alignItems: "center" }}
+        >
           <Text style={styles.footerText}>
             Already have an account? <Text style={styles.footerLink}>Sign In</Text>
           </Text>

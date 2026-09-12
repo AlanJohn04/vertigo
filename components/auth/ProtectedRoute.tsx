@@ -17,17 +17,31 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   useEffect(() => {
     if (DEV_BYPASS_AUTH) return;
     if (loading) return;
-    const inAuthGroup = segments[0] === "(auth)";
-    const inPatientGroup = segments[0] === "(patient)";
-    const inTabsGroup = segments[0] === "(tabs)";
+    const firstSegment = segments[0] as string | undefined;
+    const secondSegment = segments[1] as string | undefined;
+
+    const isTermsRoute =
+      firstSegment === "Terms" ||
+      firstSegment === "terms" ||
+      (firstSegment === "(auth)" && (secondSegment === "Terms" || secondSegment === "terms"));
+
+    if (isTermsRoute) return;
+
+    const inAuthGroup = firstSegment === "(auth)";
+    const inPatientGroup = firstSegment === "(patient)";
+    const inTabsGroup = firstSegment === "(tabs)";
     const isPractitionerAllowedRoute = true;
     const isPublicRoute =
-      segments[0] === "landing" ||
-      segments[0] === "disclaimer" ||
-      segments[0] === "typeOfUser" ||
-      segments[0] === "login" ||
-      segments[0] === "Terms" ||
-      !segments[0];
+      firstSegment === "landing" ||
+      firstSegment === "disclaimer" ||
+      firstSegment === "typeOfUser" ||
+      firstSegment === "login" ||
+      firstSegment === "SignIn" ||
+      firstSegment === "SignUp" ||
+      firstSegment === "signup" ||
+      firstSegment === "Terms" ||
+      firstSegment === "terms" ||
+      !firstSegment;
 
     if (!user) {
       if (!inAuthGroup && !isPublicRoute) router.replace("/(auth)/SignIn");

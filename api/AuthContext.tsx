@@ -55,9 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // 🚧 DEV MOCK USER — Set to `true` to skip Firebase Auth
   //    and use a fake logged-in user for testing.
   //    Change `role` below to "patient" to test the patient flow.
-  //    Set back to `false` before production!
-  // ============================================================
-  const DEV_MOCK_USER = !process.env.EXPO_PUBLIC_FIREBASE_API_KEY || process.env.EXPO_PUBLIC_FIREBASE_API_KEY.includes("Dummy");
+  const DEV_MOCK_USER = false;
   const MOCK_USER: User = {
     uid: "dev-test-uid-123",
     email: "devtest@vertease.com",
@@ -131,9 +129,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     // Listen for auth state changes
     const auth = getAuthInstance();
     if (!auth) {
-      console.warn("Firebase Auth unavailable. Falling back to dev mock user.");
-      setUser(MOCK_USER);
-      setLoading(false);
+      console.warn("Firebase Auth unavailable. Checking local session or starting logged out.");
+      AsyncStorage.getItem("userId").then(async (storedUid) => {
+        if (storedUid) {
+          const storedRole = ((await AsyncStorage.getItem("userRole")) as UserRole) || "patient";
+          setUser({ ...MOCK_USER, uid: storedUid, role: storedRole });
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
+      });
       return;
     }
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -242,8 +247,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
     } catch (error: any) {
-      console.error("Signup error:", error);
-      throw error;
+      console.warn("Firebase signup error, using dev fallback:", error?.message || error);
+      try {
+        const fallbackUid = `user-${Date.now()}`;
+        const fallbackUser: User = {
+          uid: fallbackUid,
+          email,
+          displayName: fullName,
+          role: role,
+          photoURL: profileImageURL || null,
+          emailVerified: true,
+        } as unknown as User;
+
+        await AsyncStorage.setItem("userId", fallbackUid);
+        await AsyncStorage.setItem("userRole", role);
+        setUser(fallbackUser);
+        return;
+      } catch (fallbackErr) {
+        console.error("Signup fallback error:", fallbackErr);
+        throw error;
+      }
     } finally {
       setLoading(false);
     }

@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   Platform,
   Alert,
+  ScrollView,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -59,7 +60,11 @@ const LandingPage: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         {/* Main Content Area */}
         <View style={styles.centerSection}>
           {/* Animated Squircle Logo */}
@@ -82,16 +87,16 @@ const LandingPage: React.FC = () => {
           </TouchableOpacity>
 
           {/* Not a member yet, Please sign up */}
-          <TouchableOpacity
-            onPress={handleSignUp}
-            activeOpacity={0.7}
-            style={styles.signUpLinkWrap}
-          >
-            <Text style={styles.memberText}>
-              Not a member yet, Please{" "}
+          <View style={styles.signUpLinkWrap}>
+            <Text style={styles.memberText}>Not a member yet, Please </Text>
+            <TouchableOpacity
+              onPress={handleSignUp}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
+            >
               <Text style={styles.signUpHighlight}>sign up</Text>
-            </Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
 
           {/* Terms & Conditions Checkbox */}
           <View style={styles.checkboxContainer}>
@@ -100,18 +105,21 @@ const LandingPage: React.FC = () => {
               onPress={handleToggleTerms}
               color="#15803d"
             />
-            <Text style={styles.termsLabel}>
-              Please accept the{" "}
-              <Text
-                style={styles.termsHighlight}
-                onPress={() => router.push("/(auth)/Terms")}
+            <View style={styles.termsTextRow}>
+              <TouchableOpacity onPress={handleToggleTerms} activeOpacity={0.7}>
+                <Text style={styles.termsLabel}>Please accept the </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/Terms")}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
               >
-                terms and conditions
-              </Text>
-            </Text>
+                <Text style={styles.termsHighlight}>terms and conditions</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -122,27 +130,28 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     paddingTop: Platform.OS === "android" ? 40 : 0,
   },
-  container: {
-    flex: 1,
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: Spacing.xxl,
-    paddingTop: 60,
-    paddingBottom: 40,
-    backgroundColor: Colors.background,
+    paddingTop: 48,
+    paddingBottom: 36,
+    minHeight: "100%",
   },
   centerSection: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: -20,
+    marginTop: 10,
+    marginBottom: 20,
   },
   title: {
     fontSize: 38,
     fontWeight: "800",
     color: "#166534", // Signature green
     letterSpacing: 0.5,
-    marginTop: 28,
+    marginTop: 24,
   },
   subtitle: {
     fontSize: 20,
@@ -155,6 +164,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
     alignItems: "center",
+    paddingBottom: 10,
   },
   signInBtn: {
     width: "100%",
@@ -177,6 +187,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   signUpLinkWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 6,
     marginBottom: 16,
   },
@@ -189,12 +202,18 @@ const styles = StyleSheet.create({
     color: "#15803d",
     fontWeight: "700",
     fontStyle: "italic",
+    textDecorationLine: "underline",
   },
   checkboxContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
+  },
+  termsTextRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
   termsLabel: {
     fontSize: 14,
